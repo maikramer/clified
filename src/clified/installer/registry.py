@@ -10,6 +10,13 @@ from typing import Any
 
 import yaml
 
+from clified.paths import (
+    clified_home,
+    clified_root as resolve_clified_root,
+    ensure_user_tools_yaml,
+    tools_yaml_path as resolve_tools_yaml_path,
+)
+
 TOOLS: dict[str, ToolSpec] = {}
 WORKSPACE: WorkspaceConfig | None = None
 _CLIFIED_ROOT: Path | None = None
@@ -94,25 +101,24 @@ class ToolSpec:
 
 
 def clified_root() -> Path:
-    """Raiz do pacote Clified (contém ``tools.yaml`` e ``pyproject.toml``)."""
+    """Raiz de configuração (checkout, PyPI ou ``~/.config/clified``)."""
     global _CLIFIED_ROOT
     if _CLIFIED_ROOT is not None:
         return _CLIFIED_ROOT
-
-    env = os.environ.get("CLIFIED_ROOT", "").strip()
-    if env:
-        _CLIFIED_ROOT = Path(env).resolve()
-        return _CLIFIED_ROOT
-
-    _CLIFIED_ROOT = Path(__file__).resolve().parents[3]
+    _CLIFIED_ROOT = resolve_clified_root()
     return _CLIFIED_ROOT
 
 
 def tools_yaml_path() -> Path:
     custom = os.environ.get("CLIFIED_TOOLS", "").strip()
     if custom:
-        return Path(custom).resolve()
-    return clified_root() / "tools.yaml"
+        return Path(custom).expanduser().resolve()
+    if not os.environ.get("CLIFIED_TOOLS"):
+        home_yaml = clified_home() / "tools.yaml"
+        root_yaml = resolve_clified_root() / "tools.yaml"
+        if not home_yaml.is_file() and not root_yaml.is_file():
+            ensure_user_tools_yaml()
+    return resolve_tools_yaml_path()
 
 
 def _parse_python_version(raw: Any, default: tuple[int, int]) -> tuple[int, int]:

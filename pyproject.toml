@@ -1,6 +1,6 @@
 [project]
 name = "clified"
-version = "0.3.0"
+version = "0.4.0"
 description = "Instalador universal e biblioteca CLI para ferramentas Python, Rust e Bun"
 readme = "README.md"
 license = "MIT"
@@ -36,6 +36,7 @@ dev = [
 ]
 
 [project.scripts]
+clified = "clified.__main__:main"
 clified-install = "clified.installer.unified:main"
 
 [project.urls]

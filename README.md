@@ -28,15 +28,39 @@ clified/
 
 ## Instalação
 
+### PyPI (recomendado)
+
+```bash
+pip install --user clified
+# ou: pipx install clified
+
+clified-install --list
+clified-install minha-ferramenta
+```
+
+Cada repositório de ferramenta traz o seu `tools.yaml` e define `CLIFIED_TOOLS` no `install.sh` — **não é necessário clonar o Clified**.
+
+### Desenvolvimento do Clified
+
 ```bash
 git clone https://github.com/maikramer/clified.git
 cd clified
-cp tools.yaml.example tools.yaml
+pip install -e ".[dev]"
+cp tools.yaml.example tools.yaml   # registry local opcional
 ./install.sh --list
-./install.sh minha-ferramenta
 ```
 
 Para CLIs Click: `pip install -e ".[cli]"` (grupo `--json` / `--quiet` / `--verbose`).
+
+### Publicar no PyPI
+
+```bash
+pip install hatch
+hatch build
+hatch publish   # requer credenciais PyPI / token
+```
+
+Ou crie um **GitHub Release** — o workflow `.github/workflows/publish.yml` publica automaticamente (Trusted Publishing).
 
 ## Migração de workspaces existentes
 
@@ -100,8 +124,10 @@ tools:
 
 | Variável | Descrição |
 |----------|-----------|
-| `CLIFIED_ROOT` | Pasta clified |
-| `CLIFIED_TOOLS` | Caminho alternativo para tools.yaml |
+| `CLIFIED_TOOLS` | Caminho para `tools.yaml` do projecto (**principal**) |
+| `CLIFIED_HOME` | Config do utilizador (default `~/.config/clified`) |
+| `CLIFIED_ROOT` | Checkout local do Clified (só dev) |
+| `CLIFIED_MIN_VERSION` | Versão mínima no `pip install` automático (default `0.4.0`) |
 | `CLIFIED_RETRY=1` | Retry automático na instalação |
 | `CLIFIED_MCP_NAME` | Nome do servidor MCP (hook) |
 | `CLIFIED_PROJECT_ROOT` | Override para `find_project_root()` |

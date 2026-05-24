@@ -8,7 +8,7 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, Field, field_validator
 
-from clified.installer.registry import clified_root
+from clified.paths import default_clified_yml
 
 from .exceptions import ConfigError
 
@@ -72,7 +72,7 @@ class ConfigManager:
     """Carrega e persiste configuração YAML do Clified."""
 
     def __init__(self, config_file: Path | None = None) -> None:
-        self.config_file = config_file or (clified_root() / "config" / "clified.yml")
+        self.config_file = config_file or default_clified_yml()
         self._config: ClifiedConfig | None = None
 
     def get_config(self) -> ClifiedConfig:

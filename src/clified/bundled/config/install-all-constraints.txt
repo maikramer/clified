@@ -1,0 +1,2 @@
+# Constraints opcionais para ``clified-install all`` (pip -c).
+# Deixe vazio ou comente linhas que não usar.

@@ -1,51 +1,33 @@
-"""Testes de resolução de paths."""
+"""Testes de resolução de paths (wheel / checkout / home)."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from pathlib import Path
 
-import pytest
-
-from clified.core.paths import find_project_root, resolve_project_file
-
-if TYPE_CHECKING:
-    from pathlib import Path
+import clified.paths as paths
 
 
-def test_find_project_root_by_pyproject(tmp_path: Path) -> None:
-    proj = tmp_path / "myapp"
-    proj.mkdir()
-    (proj / "pyproject.toml").write_text("[project]\nname='x'\n", encoding="utf-8")
-    sub = proj / "src" / "pkg"
-    sub.mkdir(parents=True)
-
-    root = find_project_root(sub)
-    assert root == proj.resolve()
+def test_package_dir_exists() -> None:
+    assert paths.package_dir().is_dir()
+    assert (paths.package_dir() / "__init__.py").is_file()
 
 
-def test_resolve_project_file_relative(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    proj = tmp_path / "repo"
-    proj.mkdir()
-    (proj / "pyproject.toml").write_text("[project]\nname='x'\n", encoding="utf-8")
-    cfg = proj / "config.yml"
-    cfg.write_text("x: 1\n", encoding="utf-8")
-    sub = proj / "src"
-    sub.mkdir()
-    monkeypatch.chdir(sub)
-
-    resolved = resolve_project_file("config.yml")
-    assert resolved == cfg.resolve()
+def test_bundled_tools_example_shipped() -> None:
+    example = paths.bundled_path("tools.yaml.example")
+    assert example.is_file()
 
 
-def test_resolve_project_file_missing(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    proj = tmp_path / "empty"
-    proj.mkdir()
-    (proj / "Cargo.toml").write_text("[package]\nname='x'\n", encoding="utf-8")
-    monkeypatch.chdir(proj)
+def test_bundled_constraints_shipped() -> None:
+    assert paths.install_all_constraints_file() is not None
 
-    with pytest.raises(FileNotFoundError, match="não encontrado"):
-        resolve_project_file("missing.txt")
+
+def test_clified_home_override(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("CLIFIED_HOME", str(tmp_path / "cfg"))
+    assert paths.clified_home() == (tmp_path / "cfg").resolve()
+
+
+def test_tools_yaml_clified_tools(tmp_path: Path, monkeypatch) -> None:
+    custom = tmp_path / "custom.yaml"
+    custom.write_text("workspace:\n  root: .\n  name: T\n\ntools: {}\n")
+    monkeypatch.setenv("CLIFIED_TOOLS", str(custom))
+    assert paths.tools_yaml_path() == custom.resolve()

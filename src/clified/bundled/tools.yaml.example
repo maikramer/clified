@@ -1,0 +1,8 @@
+# Template — copiado para ~/.config/clified/tools.yaml na primeira execução
+# Cada projecto deve usar o seu tools.yaml via CLIFIED_TOOLS (recomendado).
+
+workspace:
+  root: .
+  name: "Workspace"
+
+tools: {}

@@ -11,7 +11,7 @@ from pathlib import Path
 
 from clified.logging import Logger
 
-from .registry import clified_root
+from clified.paths import install_all_constraints_file as _constraints_file
 
 
 def path_env_contains_dir(path_env: str, bin_dir: Path, *, is_windows: bool) -> bool:
@@ -52,15 +52,7 @@ def uv_cmd() -> str:
 
 
 def install_all_constraints_file() -> Path | None:
-    p = clified_root() / "config" / "install-all-constraints.txt"
-    if not p.is_file():
-        return None
-    try:
-        if p.read_text(encoding="utf-8").strip():
-            return p
-    except OSError:
-        pass
-    return None
+    return _constraints_file()
 
 
 def install_all_constraint_argv() -> list[str]:

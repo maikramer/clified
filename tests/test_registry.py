@@ -61,8 +61,9 @@ def test_list_available_tools(
     assert available[0].cli_name == "demo"
 
 
-def test_missing_tools_yaml(clified_root, monkeypatch) -> None:
-    monkeypatch.setenv("CLIFIED_ROOT", str(clified_root))
+def test_missing_tools_yaml(clified_root, monkeypatch, tmp_path: Path) -> None:
+    missing = tmp_path / "nao-existe.yaml"
+    monkeypatch.setenv("CLIFIED_TOOLS", str(missing))
     with pytest.raises(FileNotFoundError, match="Registry não encontrado"):
         reg.load_registry()
 

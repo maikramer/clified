@@ -1,0 +1,63 @@
+# Exemplo: migrar monorepo GameDev para Clified
+# Copie secções relevantes para o seu tools.yaml
+# Hooks específicos ficam no repo GameDev (gamedev_shared.installer.clified_hooks)
+
+workspace:
+  root: "/caminho/para/GameDev"
+  name: "GameDev"
+  shared_python:
+    path: Shared
+    import_name: gamedev_shared
+    src_subpath: src
+
+tools:
+  text2d:
+    kind: python
+    folder: Text2D
+    cli_name: text2d
+    python_module: text2d
+    description: "CLI text-to-image"
+    min_python: [3, 13]
+    needs_pytorch: true
+    install_order: -2
+    post_install: clified.hooks:pip_check
+
+  text3d:
+    kind: python
+    folder: Text3D
+    cli_name: text3d
+    python_module: text3d
+    description: "Pipeline text-to-3D"
+    min_python: [3, 13]
+    needs_pytorch: true
+    install_order: -1
+    install_before: [text2d]
+    cross_deps: [text2d]
+    post_install: gamedev_shared.installer.clified_hooks:text3d_post_install
+
+  materialize:
+    kind: rust
+    folder: Materialize
+    cli_name: materialize
+    cargo_bin_name: materialize-cli
+    description: "PBR maps via GPU"
+
+  text2sound:
+    kind: python
+    folder: Text2Sound
+    cli_name: text2sound
+    python_module: text2sound
+    description: "CLI text-to-audio"
+    min_python: [3, 13]
+    needs_pytorch: true
+    custom_install: gamedev_shared.installer.clified_hooks:text2sound_custom_install
+
+  paint3d:
+    kind: python
+    folder: Paint3D
+    cli_name: paint3d
+    python_module: paint3d
+    description: "Texturização 3D PBR"
+    min_python: [3, 13]
+    needs_pytorch: true
+    post_install: gamedev_shared.installer.clified_hooks:paint3d_post_install
