@@ -1,8 +1,60 @@
-# Template — copiado para ~/.config/clified/tools.yaml na primeira execução
-# Cada projecto deve usar o seu tools.yaml via CLIFIED_TOOLS (recomendado).
+# Copy to tools.yaml and register your tools.
+# workspace.root: path relative to the directory containing this file.
 
 workspace:
-  root: .
-  name: "Workspace"
+  root: ".."
+  name: "My Workspace"
 
-tools: {}
+  # Optional: shared Python package (pip install -e) for all Python tools
+  # shared_python:
+  #   path: shared-lib
+  #   import_name: mylib
+  #   src_subpath: src
+
+tools:
+  # Local example (copy and adapt in your tools.yaml):
+  # ai2print:
+  #   name: "AI2Print"
+  #   kind: rust
+  #   folder: ai2print
+  #   cli_name: ai2print
+  #   cargo_bin_name: stl-repair-gui
+  #   description: "GTK GUI to repair STL/3MF meshes for 3D printing"
+  #   extra_aliases: [stl-repair-gui]
+  #   post_install: clified_install:post_install
+
+  # mytool:
+  #   name: "My Tool"
+  #   kind: python
+  #   folder: my-tool
+  #   cli_name: mytool
+  #   python_module: mytool
+  #   description: "Short description"
+  #   min_python: [3, 10]
+  #   extra_aliases: []
+  #   needs_pytorch: false
+  #   install_before: [other]    # install another tool first
+  #   install_before_mode: venv_only  # cross_deps/.pth only, skip dedicated install
+  #   install_order: 10            # order in ``clified-install all`` (lower = first)
+  #   custom_install: mypkg.hooks:install_in_venv  # replaces default pip install -e
+  #   post_install: clified.hooks:register_mcp_serve
+  #   cross_deps: [other]        # link another tool's src/ via .pth in venv
+
+  # --- Rust (Cargo.toml) ---
+  # myrust:
+  #   name: "My Rust CLI"
+  #   kind: rust
+  #   folder: my-rust-cli
+  #   cli_name: myrust
+  #   cargo_bin_name: my-rust-cli
+  #   description: "Rust CLI"
+
+  # --- Bun/TypeScript (package.json) ---
+  # mybun:
+  #   name: "My Bun App"
+  #   kind: bun
+  #   folder: my-bun-app
+  #   cli_name: mybun
+  #   description: "TypeScript app"
+  #   bun_cli_script: scripts/mybun-cli.mjs
+  #   bun_build_command: build

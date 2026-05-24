@@ -55,6 +55,7 @@ packages = ["src/clified"]
 include = [
     "/src/clified",
     "/config",
+    "/docs",
     "/examples",
     "/scripts",
     "/install.sh",
