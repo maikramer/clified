@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -34,7 +34,7 @@ class StateStore:
                 else:
                     self._state = json.loads(json.dumps(self.DEFAULT_STATE))
                     self._state["metadata"]["created_at"] = datetime.now(
-                        tz=UTC
+                        tz=timezone.utc
                     ).isoformat()
             except json.JSONDecodeError:
                 self.logger.warn("State corrompido; recriando.")
@@ -47,7 +47,9 @@ class StateStore:
 
     def _save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._state["metadata"]["updated_at"] = datetime.now(tz=UTC).isoformat()
+        self._state["metadata"]["updated_at"] = datetime.now(
+            tz=timezone.utc
+        ).isoformat()
         temp = self.path.with_suffix(".tmp")
         temp.write_text(
             json.dumps(self._state, indent=2, ensure_ascii=False), encoding="utf-8"
@@ -88,7 +90,9 @@ class StateStore:
     def clear_all(self) -> None:
         with self._lock:
             self._state = json.loads(json.dumps(self.DEFAULT_STATE))
-            self._state["metadata"]["created_at"] = datetime.now(tz=UTC).isoformat()
+            self._state["metadata"]["created_at"] = datetime.now(
+                tz=timezone.utc
+            ).isoformat()
             self._save()
 
     def export_state(self) -> dict[str, Any]:

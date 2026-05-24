@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
@@ -84,7 +84,7 @@ class CircuitBreaker:
         if self._opened_at is None:
             return False
         return (
-            datetime.now(tz=UTC) - self._opened_at
+            datetime.now(tz=timezone.utc) - self._opened_at
         ).total_seconds() >= self.config.recovery_timeout
 
     def _transition_to(self, new_state: CircuitState) -> None:
@@ -97,7 +97,7 @@ class CircuitBreaker:
             self._successes_in_half_open = 0
             self._calls_in_half_open = 0
         elif new_state == CircuitState.OPEN:
-            self._opened_at = datetime.now(tz=UTC)
+            self._opened_at = datetime.now(tz=timezone.utc)
         elif new_state == CircuitState.CLOSED:
             self._failures.clear()
             self._opened_at = None
@@ -118,7 +118,7 @@ class CircuitBreaker:
                 return
             self._stats.total_calls += 1
             self._stats.failed_calls += 1
-            self._failures.append(datetime.now(tz=UTC))
+            self._failures.append(datetime.now(tz=timezone.utc))
             if self._state == CircuitState.HALF_OPEN or (
                 self._state == CircuitState.CLOSED
                 and self._count_recent_failures() >= self.config.failure_threshold
@@ -126,7 +126,9 @@ class CircuitBreaker:
                 self._transition_to(CircuitState.OPEN)
 
     def _count_recent_failures(self) -> int:
-        cutoff = datetime.now(tz=UTC) - timedelta(seconds=self.config.failure_window)
+        cutoff = datetime.now(tz=timezone.utc) - timedelta(
+            seconds=self.config.failure_window
+        )
         while self._failures and self._failures[0] < cutoff:
             self._failures.popleft()
         return len(self._failures)
@@ -149,7 +151,9 @@ class CircuitBreaker:
         if not self.allow_request():
             remaining = float(self.config.recovery_timeout)
             if self._opened_at:
-                elapsed = (datetime.now(tz=UTC) - self._opened_at).total_seconds()
+                elapsed = (
+                    datetime.now(tz=timezone.utc) - self._opened_at
+                ).total_seconds()
                 remaining = max(0.0, self.config.recovery_timeout - elapsed)
             raise CircuitOpenError(self.name, remaining)
         try:

@@ -6,7 +6,7 @@ import functools
 import random
 import time
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from clified.logging import Logger
@@ -116,7 +116,7 @@ class RetryEngine:
 
         for attempt_num in range(1, self.policy.max_attempts + 1):
             attempt = RetryAttempt(
-                attempt_number=attempt_num, started_at=datetime.now(tz=UTC)
+                attempt_number=attempt_num, started_at=datetime.now(tz=timezone.utc)
             )
             if attempt_num > 1:
                 delay = self.calculate_delay(attempt_num)
@@ -131,7 +131,7 @@ class RetryEngine:
             try:
                 result = func(*args, **kwargs)
                 attempt.success = True
-                attempt.ended_at = datetime.now(tz=UTC)
+                attempt.ended_at = datetime.now(tz=timezone.utc)
                 attempts.append(attempt)
                 return RetryResult(
                     success=True,
@@ -142,7 +142,7 @@ class RetryEngine:
             except Exception as exc:
                 attempt.success = False
                 attempt.exception = exc
-                attempt.ended_at = datetime.now(tz=UTC)
+                attempt.ended_at = datetime.now(tz=timezone.utc)
                 attempts.append(attempt)
                 final_exception = exc
                 self.logger.warn(
