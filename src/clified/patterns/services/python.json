@@ -1,0 +1,31 @@
+{
+  "service": "python",
+  "version": "1.0",
+  "description": "Erros comuns de Python/pip/venv",
+  "aliases": ["pip", "venv"],
+  "patterns": [
+    {
+      "id": "python_missing_module",
+      "pattern": "ModuleNotFoundError|No module named",
+      "category": "dependency",
+      "priority": 1,
+      "diagnosis": "Dependência Python em falta",
+      "solutions": [
+        "Verifique pyproject.toml ou requirements.txt",
+        "Instale no venv: pip install -e .",
+        "Active o venv correcto (.venv/bin/activate)"
+      ]
+    },
+    {
+      "id": "python_externally_managed",
+      "pattern": "externally-managed-environment",
+      "category": "permission",
+      "priority": 1,
+      "diagnosis": "Ambiente Python gerido pelo sistema (PEP 668)",
+      "solutions": [
+        "Use venv do projecto em vez de pip global",
+        "O Clified cria .venv automaticamente para tools Python"
+      ]
+    }
+  ]
+}

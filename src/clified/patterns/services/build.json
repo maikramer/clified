@@ -1,0 +1,56 @@
+{
+  "service": "build",
+  "version": "1.0",
+  "description": "Padrões genéricos de erros de build e instalação",
+  "aliases": ["pip", "cargo", "npm", "install"],
+  "patterns": [
+    {
+      "id": "build_missing_dependency",
+      "pattern": "ModuleNotFoundError|No module named|cannot find package|package not found",
+      "category": "dependency",
+      "priority": 1,
+      "diagnosis": "Dependência Python ou pacote em falta",
+      "solutions": [
+        "Verifique pyproject.toml / requirements.txt",
+        "Reinstale no venv: pip install -e .",
+        "Confirme que o venv activo é o do projecto"
+      ]
+    },
+    {
+      "id": "build_compile_error",
+      "pattern": "error: failed to compile|compilation failed|rustc.*error",
+      "category": "compile",
+      "priority": 1,
+      "diagnosis": "Erro de compilação (Rust ou extensão nativa)",
+      "solutions": [
+        "Leia a mensagem de erro completa do compilador",
+        "Instale toolchain de build (build-essential, rustup)",
+        "Verifique versão do Rust/Python compatível"
+      ]
+    },
+    {
+      "id": "build_network",
+      "pattern": "Could not fetch|failed to download|Connection refused|Temporary failure in name resolution",
+      "category": "network",
+      "priority": 2,
+      "diagnosis": "Falha de rede durante download de dependências",
+      "solutions": [
+        "Verifique ligação à Internet",
+        "Configure proxy se necessário",
+        "Tente novamente com retry ou mirror alternativo"
+      ]
+    },
+    {
+      "id": "build_permission",
+      "pattern": "Permission denied|EACCES|externally-managed-environment",
+      "category": "permission",
+      "priority": 2,
+      "diagnosis": "Permissão negada ou ambiente Python gerido pelo SO",
+      "solutions": [
+        "Use venv do projecto (.venv) em vez de pip global",
+        "Não instale com sudo em projectos de utilizador",
+        "Em Debian/Ubuntu: apt install python3-venv"
+      ]
+    }
+  ]
+}

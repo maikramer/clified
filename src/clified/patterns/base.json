@@ -1,0 +1,287 @@
+{
+  "service": "base",
+  "version": "1.0",
+  "description": "Padrões base compartilhados por todos os serviços",
+  "aliases": [],
+  "patterns": [
+    {
+      "id": "base_oom_killed",
+      "pattern": "out of memory|oom[-_]?kill|killed process|cannot allocate memory",
+      "category": "resource",
+      "priority": 1,
+      "diagnosis": "Processo encerrado por falta de memória (OOM)",
+      "solutions": [
+        "Aumente o limite de memória do container no docker-compose.yml",
+        "Verifique vazamentos de memória na aplicação",
+        "Monitore o uso de memória com 'docker stats'",
+        "Considere adicionar mais RAM ao host"
+      ],
+      "related_errors": ["base_memory_limit"]
+    },
+    {
+      "id": "base_memory_limit",
+      "pattern": "memory limit|memory cgroup|memory usage.*exceed",
+      "category": "resource",
+      "priority": 1,
+      "diagnosis": "Limite de memória do container excedido",
+      "solutions": [
+        "Ajuste mem_limit no docker-compose.yml",
+        "Otimize o uso de memória da aplicação",
+        "Verifique configurações de cache da aplicação"
+      ],
+      "related_errors": ["base_oom_killed"]
+    },
+    {
+      "id": "base_disk_full",
+      "pattern": "no space left on device|disk quota exceeded|filesystem.*full",
+      "category": "resource",
+      "priority": 1,
+      "diagnosis": "Espaço em disco esgotado",
+      "solutions": [
+        "Execute 'docker system prune' para limpar recursos",
+        "Verifique logs antigos que podem ser removidos",
+        "Limpe volumes não utilizados com 'docker volume prune'",
+        "Adicione mais espaço em disco ao host"
+      ],
+      "related_errors": []
+    },
+    {
+      "id": "base_permission_denied",
+      "pattern": "permission denied|access denied|operation not permitted|EACCES",
+      "category": "auth",
+      "priority": 2,
+      "diagnosis": "Permissão negada para acessar recurso",
+      "solutions": [
+        "Verifique as permissões do arquivo/diretório",
+        "Ajuste o usuário do container (user: directive)",
+        "Verifique configurações de SELinux/AppArmor",
+        "Use 'chmod' ou 'chown' para ajustar permissões"
+      ],
+      "related_errors": []
+    },
+    {
+      "id": "base_connection_refused",
+      "pattern": "connection refused|ECONNREFUSED|connect failed",
+      "category": "network",
+      "priority": 2,
+      "diagnosis": "Conexão recusada pelo serviço de destino",
+      "solutions": [
+        "Verifique se o serviço de destino está rodando",
+        "Confirme a porta e host na configuração",
+        "Verifique se os containers estão na mesma rede",
+        "Aguarde o serviço inicializar completamente"
+      ],
+      "related_errors": ["base_connection_timeout"]
+    },
+    {
+      "id": "base_connection_timeout",
+      "pattern": "connection timed? ?out|ETIMEDOUT|read timeout|connect timeout",
+      "category": "network",
+      "priority": 2,
+      "diagnosis": "Timeout na conexão com serviço",
+      "solutions": [
+        "Aumente o timeout de conexão na configuração",
+        "Verifique a conectividade de rede",
+        "Monitore a latência entre os serviços",
+        "Verifique se há sobrecarga no serviço de destino"
+      ],
+      "related_errors": ["base_connection_refused"]
+    },
+    {
+      "id": "base_dns_resolution",
+      "pattern": "name.*not.*resolve|dns.*failed|getaddrinfo.*failed|ENOTFOUND|unknown host",
+      "category": "network",
+      "priority": 2,
+      "diagnosis": "Falha na resolução de DNS",
+      "solutions": [
+        "Verifique se o nome do host está correto",
+        "Confirme se o serviço existe na rede Docker",
+        "Verifique a configuração de DNS do Docker",
+        "Use o nome do serviço como hostname na rede Docker"
+      ],
+      "related_errors": []
+    },
+    {
+      "id": "base_port_in_use",
+      "pattern": "address already in use|bind.*failed|EADDRINUSE|port.*already.*allocated",
+      "category": "network",
+      "priority": 1,
+      "diagnosis": "Porta já está em uso por outro processo",
+      "solutions": [
+        "Verifique qual processo usa a porta com 'netstat' ou 'ss'",
+        "Pare o processo conflitante ou use outra porta",
+        "Aguarde alguns segundos se a porta foi usada recentemente",
+        "Verifique se não há containers órfãos usando a porta"
+      ],
+      "related_errors": []
+    },
+    {
+      "id": "base_file_not_found",
+      "pattern": "no such file|file not found|ENOENT|cannot find|does not exist",
+      "category": "config",
+      "priority": 2,
+      "diagnosis": "Arquivo ou diretório não encontrado",
+      "solutions": [
+        "Verifique se o caminho do arquivo está correto",
+        "Confirme se o volume está montado corretamente",
+        "Crie o arquivo/diretório se necessário",
+        "Verifique permissões de acesso ao caminho"
+      ],
+      "related_errors": []
+    },
+    {
+      "id": "base_invalid_config",
+      "pattern": "invalid config|configuration error|parse error|syntax error|malformed",
+      "category": "config",
+      "priority": 1,
+      "diagnosis": "Erro na configuração do serviço",
+      "solutions": [
+        "Verifique a sintaxe do arquivo de configuração",
+        "Valide o formato (YAML/JSON/TOML)",
+        "Compare com a documentação oficial",
+        "Use um validador de sintaxe online"
+      ],
+      "related_errors": []
+    },
+    {
+      "id": "base_env_missing",
+      "pattern": "environment variable.*not set|env.*required|missing.*variable|undefined.*env",
+      "category": "config",
+      "priority": 1,
+      "diagnosis": "Variável de ambiente obrigatória não definida",
+      "solutions": [
+        "Defina a variável no arquivo .env",
+        "Adicione a variável na seção environment do compose",
+        "Verifique a documentação para variáveis requeridas",
+        "Use env_file para carregar variáveis de arquivo"
+      ],
+      "related_errors": []
+    },
+    {
+      "id": "base_ssl_certificate",
+      "pattern": "certificate.*expired|ssl.*error|tls.*handshake|x509|certificate verify failed",
+      "category": "security",
+      "priority": 1,
+      "diagnosis": "Problema com certificado SSL/TLS",
+      "solutions": [
+        "Renove o certificado SSL se expirado",
+        "Verifique se o certificado é válido para o domínio",
+        "Configure o caminho correto do certificado",
+        "Sincronize o relógio do sistema se necessário"
+      ],
+      "related_errors": []
+    },
+    {
+      "id": "base_auth_failed",
+      "pattern": "authentication failed|invalid credentials|unauthorized|401|wrong password|access denied",
+      "category": "auth",
+      "priority": 1,
+      "diagnosis": "Falha na autenticação",
+      "solutions": [
+        "Verifique usuário e senha nas configurações",
+        "Confirme se as credenciais não expiraram",
+        "Verifique se o usuário tem permissões adequadas",
+        "Regenere tokens/senhas se necessário"
+      ],
+      "related_errors": []
+    },
+    {
+      "id": "base_healthcheck_failed",
+      "pattern": "health check failed|unhealthy|health.*timeout|healthcheck.*failed",
+      "category": "health",
+      "priority": 2,
+      "diagnosis": "Verificação de saúde falhou",
+      "solutions": [
+        "Verifique os logs do container para erros",
+        "Aumente o timeout do healthcheck",
+        "Verifique se as dependências estão disponíveis",
+        "Teste o endpoint de health manualmente"
+      ],
+      "related_errors": []
+    },
+    {
+      "id": "base_crash_loop",
+      "pattern": "crash.*loop|restart.*back-?off|container.*restarting|exit.*code.*[1-9]",
+      "category": "runtime",
+      "priority": 1,
+      "diagnosis": "Container em loop de reinicialização",
+      "solutions": [
+        "Verifique os logs do container para a causa raiz",
+        "Confirme se todas as dependências estão prontas",
+        "Verifique se as configurações estão corretas",
+        "Aumente os recursos do container se necessário"
+      ],
+      "related_errors": ["base_oom_killed"]
+    },
+    {
+      "id": "base_image_not_found",
+      "pattern": "image.*not found|pull.*failed|manifest.*not found|repository does not exist",
+      "category": "image",
+      "priority": 1,
+      "diagnosis": "Imagem Docker não encontrada",
+      "solutions": [
+        "Verifique se o nome e tag da imagem estão corretos",
+        "Execute 'docker login' se for um registry privado",
+        "Confirme se o registry está acessível",
+        "Tente fazer pull da imagem manualmente"
+      ],
+      "related_errors": []
+    },
+    {
+      "id": "base_volume_mount_error",
+      "pattern": "mount.*failed|volume.*error|bind mount.*invalid|mount point.*not exist",
+      "category": "storage",
+      "priority": 1,
+      "diagnosis": "Erro ao montar volume",
+      "solutions": [
+        "Verifique se o caminho do host existe",
+        "Confirme as permissões do diretório",
+        "Use caminhos absolutos para bind mounts",
+        "Verifique se o volume Docker existe"
+      ],
+      "related_errors": []
+    },
+    {
+      "id": "base_network_not_found",
+      "pattern": "network.*not found|network.*does not exist|failed to find network",
+      "category": "network",
+      "priority": 2,
+      "diagnosis": "Rede Docker não encontrada",
+      "solutions": [
+        "Crie a rede com 'docker network create'",
+        "Verifique o nome da rede no compose",
+        "Use 'docker network ls' para listar redes",
+        "Defina a rede como external se já existir"
+      ],
+      "related_errors": []
+    },
+    {
+      "id": "base_cpu_throttle",
+      "pattern": "cpu.*throttl|cpu quota|cpu limit.*exceeded|high cpu",
+      "category": "resource",
+      "priority": 2,
+      "diagnosis": "CPU do container sendo limitada/throttled",
+      "solutions": [
+        "Aumente os limites de CPU no compose",
+        "Otimize o código da aplicação",
+        "Distribua a carga entre mais containers",
+        "Monitore com 'docker stats'"
+      ],
+      "related_errors": []
+    },
+    {
+      "id": "base_signal_killed",
+      "pattern": "SIGKILL|SIGTERM|killed by signal|terminated",
+      "category": "runtime",
+      "priority": 2,
+      "diagnosis": "Processo encerrado por sinal do sistema",
+      "solutions": [
+        "Se SIGKILL, verifique OOM ou limite de recursos",
+        "Se SIGTERM, verifique quem enviou o sinal",
+        "Configure graceful shutdown na aplicação",
+        "Aumente stop_grace_period no compose"
+      ],
+      "related_errors": ["base_oom_killed"]
+    }
+  ]
+}

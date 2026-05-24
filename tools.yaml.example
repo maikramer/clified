@@ -1,0 +1,54 @@
+# Copie para tools.yaml e registe as suas ferramentas.
+# workspace.root: caminho relativo à pasta clified/ onde ficam os projectos.
+
+workspace:
+  root: ".."
+  name: "Meu Workspace"
+
+  # Opcional: pacote Python partilhado (pip install -e) em todos os projectos Python
+  # shared_python:
+  #   path: shared-lib
+  #   import_name: mylib
+  #   src_subpath: src
+
+tools:
+  # Exemplo local (copie e adapte no seu tools.yaml):
+  # stl-repair-gui:
+  #   name: "STL Repair GUI"
+  #   kind: rust
+  #   folder: stl-repair-gui
+  #   cli_name: stl-repair-gui
+  #   cargo_bin_name: stl-repair-gui
+  #   description: "GUI GTK para reparar malhas STL/3MF"
+
+  # mytool:
+  #   name: "My Tool"
+  #   kind: python
+  #   folder: my-tool
+  #   cli_name: mytool
+  #   python_module: mytool
+  #   description: "Descrição curta"
+  #   min_python: [3, 10]
+  #   extra_aliases: []
+  #   needs_pytorch: false
+  #   install_before: [other]    # instala outra tool antes
+  #   cross_deps: [other]        # liga src/ de outra tool via .pth no venv
+
+  # --- Rust (Cargo.toml) ---
+  # myrust:
+  #   name: "My Rust CLI"
+  #   kind: rust
+  #   folder: my-rust-cli
+  #   cli_name: myrust
+  #   cargo_bin_name: my-rust-cli
+  #   description: "CLI Rust"
+
+  # --- Bun/TypeScript (package.json) ---
+  # mybun:
+  #   name: "My Bun App"
+  #   kind: bun
+  #   folder: my-bun-app
+  #   cli_name: mybun
+  #   description: "App TypeScript"
+  #   bun_cli_script: scripts/mybun-cli.mjs
+  #   bun_build_command: build
