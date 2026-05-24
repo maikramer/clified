@@ -160,20 +160,38 @@ strict = true
 
 [tool.pylint.main]
 init-hook = """
-import sys
+exec(\"\"\"import sys
 from pathlib import Path
 for start in (Path.cwd(),):
     for base in (start, *start.parents):
-        for src in (base / 'src', base / 'clified' / 'src'):
-            if (src / 'clified' / 'logging.py').is_file():
-                src_str = str(src)
-                if src_str not in sys.path:
-                    sys.path.insert(0, src_str)
-                break
+        src = base / 'src'
+        if (src / 'clified' / '__init__.py').is_file():
+            p = str(src)
+            if p not in sys.path:
+                sys.path.insert(0, p)
+        venv_lib = base / '.venv' / 'lib'
+        if venv_lib.is_dir():
+            for site in venv_lib.glob('python*/site-packages'):
+                p = str(site)
+                if p not in sys.path:
+                    sys.path.insert(0, p)
+\"\"\")
 """
 
 [tool.pylint.messages_control]
-disable = ["import-outside-toplevel"]
+disable = [
+    "import-outside-toplevel",
+    "missing-module-docstring",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "too-few-public-methods",
+    "too-many-instance-attributes",
+    "unused-argument",
+    "protected-access",
+]
 
 [tool.pylint.design]
 max-line-length = 100
+
+[tool.pylint.typecheck]
+extension-pkg-allow-list = ["pytest"]
