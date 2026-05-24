@@ -10,7 +10,6 @@ import sys
 from pathlib import Path
 
 from clified.logging import Logger
-
 from clified.paths import install_all_constraints_file as _constraints_file
 
 

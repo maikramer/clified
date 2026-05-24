@@ -12,8 +12,12 @@ import yaml
 
 from clified.paths import (
     clified_home,
-    clified_root as resolve_clified_root,
     ensure_user_tools_yaml,
+)
+from clified.paths import (
+    clified_root as resolve_clified_root,
+)
+from clified.paths import (
     tools_yaml_path as resolve_tools_yaml_path,
 )
 

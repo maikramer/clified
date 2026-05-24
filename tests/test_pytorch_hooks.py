@@ -33,7 +33,9 @@ class _Logger:
 def test_install_nvdiffrast_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SKIP_NVDIFFRAST", "1")
     logger = _Logger()
-    installer = SimpleNamespace(logger=logger, venv_python="/venv/bin/python", project_root="/proj")
+    installer = SimpleNamespace(
+        logger=logger, venv_python="/venv/bin/python", project_root="/proj"
+    )
     assert install_nvdiffrast(installer) is True
     assert any("SKIP_NVDIFFRAST" in m for m in logger.messages)
 

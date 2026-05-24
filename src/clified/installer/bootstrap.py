@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
 import sys
-from typing import Sequence
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 def _min_version() -> str:
@@ -48,7 +50,7 @@ def runner_argv() -> list[str]:
     return [sys.executable, "-m", "clified"]
 
 
-def run(argv: Sequence[str], *, cwd: str | os.PathLike[str] | None = None) -> int:
+def run(argv: Sequence[str], *, cwd: str | None = None) -> int:
     if not is_available():
         install()
     cmd = [*runner_argv(), *argv]

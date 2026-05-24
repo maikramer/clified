@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import clified.paths as paths
+from clified import paths
 
 
 def test_package_dir_exists() -> None:

@@ -9,7 +9,9 @@ import pytest
 from clified.core.paths import find_project_root, resolve_project_file
 
 
-def test_find_project_root_env_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_find_project_root_env_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     env_root = tmp_path / "forced"
     env_root.mkdir()
     sub = env_root / "deep"

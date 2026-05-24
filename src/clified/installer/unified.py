@@ -179,9 +179,7 @@ class _ToolPythonInstaller(PythonProjectInstaller):
                     if self.text2d_venv_only
                     else "install_before_mode=venv_only"
                 )
-                self.logger.info(
-                    f"{mode}: {dep_key!r} via cross_deps/.pth apenas"
-                )
+                self.logger.info(f"{mode}: {dep_key!r} via cross_deps/.pth apenas")
                 continue
             self.logger.step(f"Instalando dependência: {dep_key}")
             if not install_tool(
