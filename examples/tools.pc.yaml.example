@@ -8,11 +8,10 @@ tools:
   pc:
     name: "PC CLI"
     kind: python
-    folder: .
+    folder: tools
     cli_name: pc
-    python_module: pc.cli.commands
+    python_module: pc
     description: "Flutter + Supabase + deploy — Projeto Cursor"
     min_python: [3, 10]
-    # O pc usa tools/requirements.txt; custom_install pode chamar script próprio:
-    # custom_install: pc.install_hooks:install_in_venv
-    post_install: clified.hooks:register_cursor_skill
+    custom_install: clified_install:custom_install
+    post_install: clified_install:post_install

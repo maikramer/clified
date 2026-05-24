@@ -73,12 +73,19 @@ class ToolSpec:
     bun_install_args: tuple[str, ...] = ("install", "--frozen-lockfile")
 
     def project_root(self, workspace: Path) -> Path:
-        return workspace / self.folder
+        return (workspace / self.folder).resolve()
 
     def exists(self, workspace: Path) -> bool:
         root = self.project_root(workspace)
         if self.kind == ToolKind.PYTHON:
-            return (root / "setup.py").is_file() or (root / "pyproject.toml").is_file()
+            if (root / "setup.py").is_file() or (root / "pyproject.toml").is_file():
+                return True
+            return root.is_dir() and (
+                (root / "requirements.txt").is_file()
+                or (root / self.python_module).is_dir()
+                if self.python_module
+                else False
+            )
         if self.kind == ToolKind.RUST:
             return (root / "Cargo.toml").is_file()
         if self.kind == ToolKind.BUN:
@@ -186,7 +193,11 @@ def load_registry(
 
     ws_raw = raw.get("workspace") or {}
     root_rel = str(ws_raw.get("root", "..")).strip() or ".."
-    ws_root = (clified_root() / root_rel).resolve()
+    root_path = Path(root_rel)
+    if root_path.is_absolute():
+        ws_root = root_path.resolve()
+    else:
+        ws_root = (yaml_path.parent / root_rel).resolve()
 
     shared: SharedPythonConfig | None = None
     sp_raw = ws_raw.get("shared_python")

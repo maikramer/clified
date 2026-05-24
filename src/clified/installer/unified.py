@@ -65,12 +65,20 @@ def _run_hook(hook: str, installer: PythonProjectInstaller) -> bool:
         return False
     module_path, func_name = hook.rsplit(":", 1)
     project_root = getattr(installer, "project_root", None)
-    inserted = False
+    inserted: list[str] = []
+    paths: list[str] = []
+    shared = getattr(installer, "shared_python", None)
+    workspace_root = getattr(installer, "workspace_root", None)
+    if shared is not None and workspace_root is not None:
+        shared_src = Path(workspace_root) / shared.path / shared.src_subpath
+        if shared_src.is_dir():
+            paths.append(str(shared_src.resolve()))
     if project_root is not None:
-        root_str = str(Path(project_root).resolve())
-        if root_str not in sys.path:
-            sys.path.insert(0, root_str)
-            inserted = True
+        paths.append(str(Path(project_root).resolve()))
+    for path_str in paths:
+        if path_str not in sys.path:
+            sys.path.insert(0, path_str)
+            inserted.append(path_str)
     try:
         mod = importlib.import_module(module_path)
         func = getattr(mod, func_name)
@@ -80,8 +88,9 @@ def _run_hook(hook: str, installer: PythonProjectInstaller) -> bool:
         Logger().error(f"Hook falhou ({hook}): {exc}")
         return False
     finally:
-        if inserted and sys.path:
-            sys.path.pop(0)
+        for _ in inserted:
+            if sys.path and sys.path[0] in inserted:
+                sys.path.pop(0)
 
 
 def _run_post_install(spec: ToolSpec, installer: PythonProjectInstaller) -> bool:
@@ -117,6 +126,7 @@ class _ToolPythonInstaller(PythonProjectInstaller):
         skip_deps: bool = False,
         skip_models: bool = False,
         force: bool = False,
+        text2d_venv_only: bool = False,
     ) -> None:
         cross_deps = _resolve_cross_deps(spec, workspace)
         super().__init__(
@@ -139,6 +149,7 @@ class _ToolPythonInstaller(PythonProjectInstaller):
             local_packages=spec.local_packages,
         )
         self.spec = spec
+        self.text2d_venv_only = text2d_venv_only
 
     def install_in_venv(self) -> None:
         if self.spec.custom_install:
@@ -158,10 +169,18 @@ class _ToolPythonInstaller(PythonProjectInstaller):
         return super().check_python(min_version=self.spec.min_python)
 
     def run(self) -> bool:
+        skip_before = (
+            self.text2d_venv_only or self.spec.install_before_mode == "venv_only"
+        )
         for dep_key in self.spec.install_before:
-            if self.spec.install_before_mode == "venv_only":
+            if skip_before:
+                mode = (
+                    "--text2d-venv-only"
+                    if self.text2d_venv_only
+                    else "install_before_mode=venv_only"
+                )
                 self.logger.info(
-                    f"install_before_mode=venv_only: {dep_key!r} via cross_deps/.pth apenas"
+                    f"{mode}: {dep_key!r} via cross_deps/.pth apenas"
                 )
                 continue
             self.logger.step(f"Instalando dependência: {dep_key}")
@@ -181,11 +200,12 @@ class _ToolPythonInstaller(PythonProjectInstaller):
         if not super().run():
             return False
 
+        aliases = list(self.spec.extra_aliases) if self.spec.extra_aliases else None
+        self.create_cli_wrappers(extra_aliases=aliases)
+
         if not _run_post_install(self.spec, self):
             return False
 
-        aliases = list(self.spec.extra_aliases) if self.spec.extra_aliases else None
-        self.create_cli_wrappers(extra_aliases=aliases)
         self.create_activate_wrapper()
         self.check_path()
 
@@ -226,6 +246,7 @@ def install_tool(
     skip_deps: bool = False,
     skip_models: bool = False,
     force: bool = False,
+    text2d_venv_only: bool = False,
 ) -> bool:
     if workspace is None:
         load_registry()
@@ -248,6 +269,7 @@ def install_tool(
             skip_deps=skip_deps,
             skip_models=skip_models,
             force=force,
+            text2d_venv_only=text2d_venv_only,
         )
     elif spec.kind == ToolKind.RUST:
         inst = _ToolRustInstaller(spec, workspace, install_prefix=install_prefix)
@@ -438,6 +460,11 @@ def main(argv: list[str] | None = None) -> int:
         default="python" if platform.system() == "Windows" else "python3",
         help="Comando Python",
     )
+    parser.add_argument(
+        "--text2d-venv-only",
+        action="store_true",
+        help="Text3D: só cross_deps/.pth do Text2D, sem instalação dedicada",
+    )
 
     args = parser.parse_args(argv)
 
@@ -481,6 +508,7 @@ def main(argv: list[str] | None = None) -> int:
             skip_deps=args.skip_deps,
             skip_models=args.skip_models,
             force=args.force,
+            text2d_venv_only=args.text2d_venv_only,
         )
 
     return 0 if ok else 1
