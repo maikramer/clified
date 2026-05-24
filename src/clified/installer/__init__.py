@@ -12,6 +12,7 @@ from .registry import (
     get_tool,
     list_available_tools,
     load_registry,
+    reset_registry,
     try_find_workspace_root,
 )
 from .rust_installer import RustProjectInstaller
@@ -32,6 +33,7 @@ __all__ = [
     "install_tool",
     "list_available_tools",
     "load_registry",
+    "reset_registry",
     "try_find_workspace_root",
 ]
 

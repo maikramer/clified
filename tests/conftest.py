@@ -7,8 +7,18 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from clified.installer import registry as reg
+
 if TYPE_CHECKING:
     from pathlib import Path
+
+
+@pytest.fixture(autouse=True)
+def _reset_registry_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Estado limpo antes de cada teste."""
+    reg.reset_registry()
+    monkeypatch.delenv("CLIFIED_ROOT", raising=False)
+    monkeypatch.delenv("CLIFIED_TOOLS", raising=False)
 
 
 @pytest.fixture

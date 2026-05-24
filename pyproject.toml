@@ -157,3 +157,23 @@ line-ending = "auto"
 
 [tool.ruff.lint.flake8-type-checking]
 strict = true
+
+[tool.pylint.main]
+init-hook = """
+import sys
+from pathlib import Path
+for start in (Path.cwd(),):
+    for base in (start, *start.parents):
+        for src in (base / 'src', base / 'clified' / 'src'):
+            if (src / 'clified' / 'logging.py').is_file():
+                src_str = str(src)
+                if src_str not in sys.path:
+                    sys.path.insert(0, src_str)
+                break
+"""
+
+[tool.pylint.messages_control]
+disable = ["import-outside-toplevel"]
+
+[tool.pylint.design]
+max-line-length = 100

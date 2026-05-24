@@ -15,27 +15,24 @@ from clified.installer.unified import (
 )
 
 
-@pytest.fixture(autouse=True)
-def _reset(monkeypatch: pytest.MonkeyPatch) -> None:
-    reg.TOOLS.clear()
-    reg.WORKSPACE = None
-    reg._CLIFIED_ROOT = None
-
-
 def test_run_hook_noop() -> None:
+    """Hook ``noop`` devolve sucesso."""
     installer = SimpleNamespace()
     assert _run_hook("clified.hooks:noop", installer) is True
 
 
 def test_run_hook_invalid_format() -> None:
+    """Formato inválido falha sem excepção."""
     assert _run_hook("invalid-hook", SimpleNamespace()) is False
 
 
 def test_run_hook_missing_module() -> None:
+    """Módulo inexistente falha graciosamente."""
     assert _run_hook("nao.existe.modulo:func", SimpleNamespace()) is False
 
 
 def test_run_hook_returns_false(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Hook que devolve ``False`` propaga falha."""
     def fail_hook(_installer: object) -> bool:
         return False
 
@@ -47,6 +44,7 @@ def test_run_hook_returns_false(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_run_hook_imports_from_project_root(tmp_path: Path) -> None:
+    """Hook local no ``project_root`` é importável."""
     (tmp_path / "hook_mod.py").write_text(
         "def run(installer):\n    installer.called = True\n    return True\n",
         encoding="utf-8",
@@ -57,11 +55,13 @@ def test_run_hook_imports_from_project_root(tmp_path: Path) -> None:
 
 
 def test_run_post_install_empty() -> None:
+    """``post_install`` vazio é no-op."""
     spec = SimpleNamespace(post_install="")
     assert _run_post_install(spec, SimpleNamespace()) is True  # type: ignore[arg-type]
 
 
 def test_install_all_sort_key_respects_install_order() -> None:
+    """``install_order`` menor corre primeiro."""
     low = reg.ToolSpec(
         key="a",
         name="A",
@@ -84,6 +84,7 @@ def test_install_all_sort_key_respects_install_order() -> None:
 
 
 def test_install_all_sort_key_pytorch_before_rust() -> None:
+    """Projectos PyTorch precedem Rust quando empate."""
     pytorch = reg.ToolSpec(
         key="ml",
         name="ML",

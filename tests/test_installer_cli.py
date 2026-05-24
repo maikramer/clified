@@ -4,20 +4,17 @@ from __future__ import annotations
 
 import pytest
 
-from clified.installer import registry as reg
 from clified.installer.unified import main
 
 
-@pytest.fixture(autouse=True)
-def _reset(monkeypatch: pytest.MonkeyPatch) -> None:
-    reg.TOOLS.clear()
-    reg.WORKSPACE = None
-    reg._CLIFIED_ROOT = None
-
-
+@pytest.mark.usefixtures("demo_project")
 def test_main_list(
-    sample_tools_yaml, clified_root, demo_project, monkeypatch, capsys
+    sample_tools_yaml,
+    clified_root,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
+    """``--list`` imprime ferramentas registadas."""
     monkeypatch.setenv("CLIFIED_ROOT", str(clified_root))
     monkeypatch.setenv("CLIFIED_TOOLS", str(sample_tools_yaml))
 
@@ -27,9 +24,14 @@ def test_main_list(
     assert "demo" in out.lower() or "Demo" in out
 
 
+@pytest.mark.usefixtures("demo_project")
 def test_main_list_json(
-    sample_tools_yaml, clified_root, demo_project, monkeypatch, capsys
+    sample_tools_yaml,
+    clified_root,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
+    """``--list --json`` devolve JSON válido."""
     import json
 
     monkeypatch.setenv("CLIFIED_ROOT", str(clified_root))
@@ -42,7 +44,12 @@ def test_main_list_json(
     assert data["tools"][0]["name"] == "demo"
 
 
-def test_main_help(sample_tools_yaml, clified_root, monkeypatch, capsys) -> None:
+def test_main_help(
+    sample_tools_yaml,
+    clified_root,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Invocação sem subcomando mostra ajuda."""
     monkeypatch.setenv("CLIFIED_ROOT", str(clified_root))
     monkeypatch.setenv("CLIFIED_TOOLS", str(sample_tools_yaml))
     code = main([])

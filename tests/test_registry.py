@@ -9,18 +9,13 @@ import pytest
 from clified.installer import registry as reg
 
 
-@pytest.fixture(autouse=True)
-def _reset_registry(monkeypatch: pytest.MonkeyPatch) -> None:
-    reg.TOOLS.clear()
-    reg.WORKSPACE = None
-    reg._CLIFIED_ROOT = None
-    monkeypatch.delenv("CLIFIED_ROOT", raising=False)
-    monkeypatch.delenv("CLIFIED_TOOLS", raising=False)
-
-
+@pytest.mark.usefixtures("demo_project")
 def test_load_registry(
-    sample_tools_yaml, clified_root, demo_project, monkeypatch
+    sample_tools_yaml,
+    clified_root,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """``load_registry`` lê workspace e tools do YAML."""
     monkeypatch.setenv("CLIFIED_ROOT", str(clified_root))
     monkeypatch.setenv("CLIFIED_TOOLS", str(sample_tools_yaml))
 
@@ -33,7 +28,12 @@ def test_load_registry(
     assert tools["demo"].kind == reg.ToolKind.PYTHON
 
 
-def test_get_tool_aliases(sample_tools_yaml, clified_root, monkeypatch) -> None:
+def test_get_tool_aliases(
+    sample_tools_yaml,
+    clified_root,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``get_tool`` resolve nome, CLI e alias."""
     monkeypatch.setenv("CLIFIED_ROOT", str(clified_root))
     monkeypatch.setenv("CLIFIED_TOOLS", str(sample_tools_yaml))
     reg.load_registry()
@@ -42,7 +42,12 @@ def test_get_tool_aliases(sample_tools_yaml, clified_root, monkeypatch) -> None:
     assert reg.get_tool("Demo Tool").key == "demo"
 
 
-def test_get_tool_unknown(sample_tools_yaml, clified_root, monkeypatch) -> None:
+def test_get_tool_unknown(
+    sample_tools_yaml,
+    clified_root,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ferramenta inexistente levanta ``KeyError``."""
     monkeypatch.setenv("CLIFIED_ROOT", str(clified_root))
     monkeypatch.setenv("CLIFIED_TOOLS", str(sample_tools_yaml))
     reg.load_registry()
@@ -51,9 +56,13 @@ def test_get_tool_unknown(sample_tools_yaml, clified_root, monkeypatch) -> None:
         reg.get_tool("nao-existe")
 
 
+@pytest.mark.usefixtures("demo_project")
 def test_list_available_tools(
-    sample_tools_yaml, clified_root, demo_project, monkeypatch
+    sample_tools_yaml,
+    clified_root,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """``list_available_tools`` filtra projectos existentes."""
     monkeypatch.setenv("CLIFIED_ROOT", str(clified_root))
     monkeypatch.setenv("CLIFIED_TOOLS", str(sample_tools_yaml))
     reg.load_registry()
@@ -63,14 +72,19 @@ def test_list_available_tools(
     assert available[0].cli_name == "demo"
 
 
-def test_missing_tools_yaml(clified_root, monkeypatch, tmp_path: Path) -> None:
+def test_missing_tools_yaml(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """YAML inexistente levanta ``FileNotFoundError``."""
     missing = tmp_path / "nao-existe.yaml"
     monkeypatch.setenv("CLIFIED_TOOLS", str(missing))
     with pytest.raises(FileNotFoundError, match="Registry não encontrado"):
         reg.load_registry()
 
 
-def test_registry_extended_fields(clified_root, monkeypatch) -> None:
+def test_registry_extended_fields(
+    clified_root,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Campos opcionais do YAML são parseados correctamente."""
     import textwrap
 
     content = textwrap.dedent(

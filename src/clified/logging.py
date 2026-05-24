@@ -40,15 +40,20 @@ class Logger:
 
     @property
     def rich_available(self) -> bool:
+        """True se Rich está instalado e o console está activo."""
         return _RICH and self._console is not None
 
     @property
     def console(self) -> Console | None:
+        """Console Rich interno, ou ``None`` no fallback ANSI."""
         return self._console
 
     def info(self, msg: str) -> None:
+        """Mensagem informativa (verde)."""
         if self.rich_available:
-            self._console.print(f"[bold green]INFO[/bold green] {msg}")  # type: ignore[union-attr]
+            self._console.print(  # type: ignore[union-attr]
+                f"[bold green]INFO[/bold green] {msg}"
+            )
         else:
             pass
 
@@ -57,30 +62,43 @@ class Logger:
         self.warn(message)
 
     def warn(self, message: str) -> None:
+        """Aviso (amarelo)."""
         if self.rich_available:
-            self._console.print(f"[bold yellow]WARN[/bold yellow] {message}")  # type: ignore[union-attr]
+            self._console.print(  # type: ignore[union-attr]
+                f"[bold yellow]WARN[/bold yellow] {message}"
+            )
         else:
             pass
 
     def error(self, msg: str) -> None:
+        """Erro (vermelho)."""
         if self.rich_available:
-            self._console.print(f"[bold red]ERROR[/bold red] {msg}")  # type: ignore[union-attr]
+            self._console.print(  # type: ignore[union-attr]
+                f"[bold red]ERROR[/bold red] {msg}"
+            )
         else:
             pass
 
     def step(self, msg: str) -> None:
+        """Passo de instalação (azul)."""
         if self.rich_available:
-            self._console.print(f"[bold blue]STEP[/bold blue] {msg}")  # type: ignore[union-attr]
+            self._console.print(  # type: ignore[union-attr]
+                f"[bold blue]STEP[/bold blue] {msg}"
+            )
         else:
             pass
 
     def success(self, msg: str) -> None:
+        """Conclusão bem-sucedida (verde com ✓)."""
         if self.rich_available:
-            self._console.print(f"[bold green]✓[/bold green] {msg}")  # type: ignore[union-attr]
+            self._console.print(  # type: ignore[union-attr]
+                f"[bold green]✓[/bold green] {msg}"
+            )
         else:
             pass
 
     def header(self, text: str) -> None:
+        """Secção destacada com Panel Rich."""
         if self.rich_available:
             self._console.print()  # type: ignore[union-attr]
             self._console.print(  # type: ignore[union-attr]
@@ -94,6 +112,7 @@ class Logger:
             pass
 
     def panel(self, content: str, *, title: str = "", border: str = "green") -> None:
+        """Panel Rich com título e cor de borda configuráveis."""
         if self.rich_available:
             self._console.print(  # type: ignore[union-attr]
                 Panel(content, title=title or None, border_style=border),
@@ -102,6 +121,7 @@ class Logger:
             pass
 
     def table(self, rows: list[tuple[str, str]], *, title: str = "") -> None:
+        """Tabela chave/valor com Rich ou fallback silencioso."""
         if self.rich_available:
             t = Table(show_header=False, box=box.SIMPLE, title=title or None)
             for k, v in rows:

@@ -22,11 +22,20 @@ from clified.paths import (
 )
 
 TOOLS: dict[str, ToolSpec] = {}
-WORKSPACE: WorkspaceConfig | None = None
-_CLIFIED_ROOT: Path | None = None
+_WORKSPACE_CACHE: list[WorkspaceConfig | None] = [None]
+_CLIFIED_ROOT_CACHE: list[Path | None] = [None]
+
+
+def reset_registry() -> None:
+    """Limpa tools, workspace e caches (tests e reload)."""
+    TOOLS.clear()
+    _WORKSPACE_CACHE[0] = None
+    _CLIFIED_ROOT_CACHE[0] = None
 
 
 class ToolKind(Enum):
+    """Tipo de projeto instalável (Python, Rust ou Bun)."""
+
     PYTHON = "python"
     RUST = "rust"
     BUN = "bun"
@@ -34,6 +43,8 @@ class ToolKind(Enum):
 
 @dataclass(frozen=True)
 class SharedPythonConfig:
+    """Pacote Python partilhado injectado no venv (ex.: ``Shared/``)."""
+
     path: str
     import_name: str
     src_subpath: str = "src"
@@ -41,23 +52,30 @@ class SharedPythonConfig:
 
 @dataclass(frozen=True)
 class WorkspaceConfig:
+    """Raiz do monorepo/workspace e metadados do ``tools.yaml``."""
+
     root: Path
     name: str
     shared_python: SharedPythonConfig | None = None
     clified_root: Path | None = None
 
     def resolve(self, relative: str) -> Path:
+        """Resolve um caminho relativo à raiz do workspace."""
         return (self.root / relative).resolve()
 
 
 @dataclass(frozen=True)
 class LocalPackage:
+    """Dependência local instalada via ``pip install -e``."""
+
     path: str
     import_name: str
 
 
 @dataclass(frozen=True)
 class ToolSpec:
+    """Metadados de uma ferramenta registada em ``tools.yaml``."""
+
     key: str
     name: str
     kind: ToolKind
@@ -84,9 +102,11 @@ class ToolSpec:
     bun_install_args: tuple[str, ...] = ("install", "--frozen-lockfile")
 
     def project_root(self, workspace: Path) -> Path:
+        """Caminho absoluto da pasta do projeto no workspace."""
         return (workspace / self.folder).resolve()
 
     def exists(self, workspace: Path) -> bool:
+        """Indica se os ficheiros mínimos do projeto existem no disco."""
         root = self.project_root(workspace)
         if self.kind == ToolKind.PYTHON:
             if (root / "setup.py").is_file() or (root / "pyproject.toml").is_file():
@@ -106,14 +126,14 @@ class ToolSpec:
 
 def clified_root() -> Path:
     """Raiz de configuração (checkout, PyPI ou ``~/.config/clified``)."""
-    global _CLIFIED_ROOT
-    if _CLIFIED_ROOT is not None:
-        return _CLIFIED_ROOT
-    _CLIFIED_ROOT = resolve_clified_root()
-    return _CLIFIED_ROOT
+    if _CLIFIED_ROOT_CACHE[0] is not None:
+        return _CLIFIED_ROOT_CACHE[0]
+    _CLIFIED_ROOT_CACHE[0] = resolve_clified_root()
+    return _CLIFIED_ROOT_CACHE[0]
 
 
 def tools_yaml_path() -> Path:
+    """Caminho efectivo do ``tools.yaml`` (env, home ou checkout)."""
     custom = os.environ.get("CLIFIED_TOOLS", "").strip()
     if custom:
         return Path(custom).expanduser().resolve()
@@ -189,8 +209,6 @@ def load_registry(
     path: Path | None = None,
 ) -> tuple[WorkspaceConfig, dict[str, ToolSpec]]:
     """Carrega ``tools.yaml`` e actualiza o registry global."""
-    global TOOLS, WORKSPACE
-
     yaml_path = path or tools_yaml_path()
     if not yaml_path.is_file():
         msg = (
@@ -231,16 +249,18 @@ def load_registry(
             continue
         tools[key.lower()] = _parse_tool(key.lower(), data)
 
-    TOOLS = tools
-    WORKSPACE = workspace
+    TOOLS.clear()
+    TOOLS.update(tools)
+    _WORKSPACE_CACHE[0] = workspace
     return workspace, tools
 
 
 def get_workspace() -> WorkspaceConfig:
-    if WORKSPACE is None:
+    """Devolve o workspace carregado; faz ``load_registry`` se necessário."""
+    if _WORKSPACE_CACHE[0] is None:
         load_registry()
-    assert WORKSPACE is not None
-    return WORKSPACE
+    assert _WORKSPACE_CACHE[0] is not None
+    return _WORKSPACE_CACHE[0]
 
 
 def try_find_workspace_root(_start: Path | None = None) -> Path | None:
@@ -264,6 +284,7 @@ def find_workspace_root(start: Path | None = None) -> Path:
 
 
 def list_available_tools(workspace: Path | None = None) -> list[ToolSpec]:
+    """Lista ferramentas cujo directório existe no workspace."""
     if workspace is None:
         workspace = find_workspace_root()
     if not TOOLS:
@@ -272,6 +293,7 @@ def list_available_tools(workspace: Path | None = None) -> list[ToolSpec]:
 
 
 def get_tool(name: str) -> ToolSpec:
+    """Retorna spec pelo nome, CLI ou alias (case-insensitive)."""
     if not TOOLS:
         load_registry()
 
