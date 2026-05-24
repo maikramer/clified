@@ -64,6 +64,13 @@ def _run_hook(hook: str, installer: PythonProjectInstaller) -> bool:
         Logger().error(f"Hook inválido (esperado modulo:funcao): {hook!r}")
         return False
     module_path, func_name = hook.rsplit(":", 1)
+    project_root = getattr(installer, "project_root", None)
+    inserted = False
+    if project_root is not None:
+        root_str = str(Path(project_root).resolve())
+        if root_str not in sys.path:
+            sys.path.insert(0, root_str)
+            inserted = True
     try:
         mod = importlib.import_module(module_path)
         func = getattr(mod, func_name)
@@ -72,6 +79,9 @@ def _run_hook(hook: str, installer: PythonProjectInstaller) -> bool:
     except Exception as exc:
         Logger().error(f"Hook falhou ({hook}): {exc}")
         return False
+    finally:
+        if inserted and sys.path:
+            sys.path.pop(0)
 
 
 def _run_post_install(spec: ToolSpec, installer: PythonProjectInstaller) -> bool:

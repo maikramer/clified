@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -43,6 +44,16 @@ def test_run_hook_returns_false(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_mod = SimpleNamespace(fail_hook=fail_hook)
     monkeypatch.setattr(unified_mod.importlib, "import_module", lambda _path: fake_mod)
     assert _run_hook("fake:fail_hook", SimpleNamespace()) is False
+
+
+def test_run_hook_imports_from_project_root(tmp_path: Path) -> None:
+    (tmp_path / "hook_mod.py").write_text(
+        "def run(installer):\n    installer.called = True\n    return True\n",
+        encoding="utf-8",
+    )
+    installer = SimpleNamespace(project_root=tmp_path, called=False)
+    assert _run_hook("hook_mod:run", installer) is True
+    assert installer.called is True
 
 
 def test_run_post_install_empty() -> None:
