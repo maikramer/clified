@@ -127,11 +127,22 @@ tools:
 | `CLIFIED_TOOLS` | Caminho para `tools.yaml` do projecto (**principal**) |
 | `CLIFIED_HOME` | Config do utilizador (default `~/.config/clified`) |
 | `CLIFIED_ROOT` | Checkout local do Clified (só dev) |
-| `CLIFIED_MIN_VERSION` | Versão mínima no `pip install` automático (default `0.4.0`) |
+| `CLIFIED_MIN_VERSION` | Versão mínima no `pip install` automático (default `0.4.1`) |
 | `CLIFIED_RETRY=1` | Retry automático na instalação |
 | `CLIFIED_MCP_NAME` | Nome do servidor MCP (hook) |
 | `CLIFIED_PROJECT_ROOT` | Override para `find_project_root()` |
 | `INSTALL_PREFIX` | Prefixo (~/.local) |
+
+## Resolução de problemas (instalação)
+
+| Problema | Solução |
+|----------|---------|
+| `python3` aponta para um venv sem pip (ex.: Sherpa, conda) | O `install.sh` detecta automaticamente `python3.14`, `python3.12`, etc. Ou defina `PYTHON_CMD=/usr/bin/python3.14` |
+| `externally-managed-environment` (PEP 668, Ubuntu/Debian) | Retry automático com `--break-system-packages`, ou use `pipx install clified` |
+| `clified-install` não encontrado após pip | O bootstrap adiciona `~/.local/bin` ao PATH; confirme que está no seu `.bashrc` |
+| Ferramenta Rust com venv Python (ex. ai2print) | Requer Clified **>= 0.4.1** (`post_install` em projectos Rust) |
+
+Projectos migrados incluem `scripts/install-bootstrap.sh` (cópia de `clified/scripts/install-bootstrap.sh`) usado pelo `install.sh`.
 
 ## Origem do código
 

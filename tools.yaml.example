@@ -13,13 +13,15 @@ workspace:
 
 tools:
   # Exemplo local (copie e adapte no seu tools.yaml):
-  # stl-repair-gui:
-  #   name: "STL Repair GUI"
+  # ai2print:
+  #   name: "AI2Print"
   #   kind: rust
-  #   folder: stl-repair-gui
-  #   cli_name: stl-repair-gui
+  #   folder: ai2print
+  #   cli_name: ai2print
   #   cargo_bin_name: stl-repair-gui
   #   description: "GUI GTK para reparar malhas STL/3MF"
+  #   extra_aliases: [stl-repair-gui]
+  #   post_install: clified_install:post_install
 
   # mytool:
   #   name: "My Tool"

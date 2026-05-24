@@ -36,6 +36,12 @@ def default_python_command() -> str:
     env = os.environ.get("PYTHON_CMD", "").strip()
     if env:
         return env
+    try:
+        from clified.installer.python_select import find_python_with_pip
+
+        return find_python_with_pip()
+    except RuntimeError:
+        pass
     if platform.system().lower() == "windows":
         return "python"
     return "python3"

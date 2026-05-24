@@ -232,6 +232,13 @@ class _ToolRustInstaller(RustProjectInstaller):
         )
         self.spec = spec
 
+    def run(self) -> bool:
+        if not super().run():
+            return False
+        if self.spec.post_install:
+            return _run_post_install(self.spec, self)
+        return True
+
 
 def install_tool(
     name: str,
