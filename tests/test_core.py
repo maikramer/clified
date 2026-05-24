@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from clified.core.circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitOpenError
+from clified.core.circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    CircuitOpenError,
+)
 from clified.core.config import ClifiedConfig, ConfigManager
 from clified.core.exceptions import RetryableError
 from clified.core.retry import RetryEngine, RetryPolicy
@@ -17,10 +21,13 @@ def test_retry_succeeds_after_transient_failure() -> None:
     def flaky() -> str:
         calls["n"] += 1
         if calls["n"] < 2:
-            raise RetryableError("temp")
+            msg = "temp"
+            raise RetryableError(msg)
         return "ok"
 
-    result = RetryEngine(policy=RetryPolicy(max_attempts=3, base_delay=0.01)).execute(flaky)
+    result = RetryEngine(policy=RetryPolicy(max_attempts=3, base_delay=0.01)).execute(
+        flaky
+    )
     assert result.success
     assert result.result == "ok"
     assert result.attempt_count == 2
@@ -52,7 +59,8 @@ def test_circuit_breaker_opens_after_failures() -> None:
     cb = CircuitBreaker("test", config=config)
 
     def fail() -> None:
-        raise RuntimeError("boom")
+        msg = "boom"
+        raise RuntimeError(msg)
 
     for _ in range(2):
         with pytest.raises(RuntimeError):

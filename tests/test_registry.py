@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-
 import pytest
 
 from clified.installer import registry as reg
@@ -18,7 +16,9 @@ def _reset_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("CLIFIED_TOOLS", raising=False)
 
 
-def test_load_registry(sample_tools_yaml, clified_root, demo_project, monkeypatch):
+def test_load_registry(
+    sample_tools_yaml, clified_root, demo_project, monkeypatch
+) -> None:
     monkeypatch.setenv("CLIFIED_ROOT", str(clified_root))
     monkeypatch.setenv("CLIFIED_TOOLS", str(sample_tools_yaml))
 
@@ -31,7 +31,7 @@ def test_load_registry(sample_tools_yaml, clified_root, demo_project, monkeypatc
     assert tools["demo"].kind == reg.ToolKind.PYTHON
 
 
-def test_get_tool_aliases(sample_tools_yaml, clified_root, monkeypatch):
+def test_get_tool_aliases(sample_tools_yaml, clified_root, monkeypatch) -> None:
     monkeypatch.setenv("CLIFIED_ROOT", str(clified_root))
     monkeypatch.setenv("CLIFIED_TOOLS", str(sample_tools_yaml))
     reg.load_registry()
@@ -40,7 +40,7 @@ def test_get_tool_aliases(sample_tools_yaml, clified_root, monkeypatch):
     assert reg.get_tool("Demo Tool").key == "demo"
 
 
-def test_get_tool_unknown(sample_tools_yaml, clified_root, monkeypatch):
+def test_get_tool_unknown(sample_tools_yaml, clified_root, monkeypatch) -> None:
     monkeypatch.setenv("CLIFIED_ROOT", str(clified_root))
     monkeypatch.setenv("CLIFIED_TOOLS", str(sample_tools_yaml))
     reg.load_registry()
@@ -49,7 +49,9 @@ def test_get_tool_unknown(sample_tools_yaml, clified_root, monkeypatch):
         reg.get_tool("nao-existe")
 
 
-def test_list_available_tools(sample_tools_yaml, clified_root, demo_project, monkeypatch):
+def test_list_available_tools(
+    sample_tools_yaml, clified_root, demo_project, monkeypatch
+) -> None:
     monkeypatch.setenv("CLIFIED_ROOT", str(clified_root))
     monkeypatch.setenv("CLIFIED_TOOLS", str(sample_tools_yaml))
     reg.load_registry()
@@ -59,7 +61,42 @@ def test_list_available_tools(sample_tools_yaml, clified_root, demo_project, mon
     assert available[0].cli_name == "demo"
 
 
-def test_missing_tools_yaml(clified_root, monkeypatch):
+def test_missing_tools_yaml(clified_root, monkeypatch) -> None:
     monkeypatch.setenv("CLIFIED_ROOT", str(clified_root))
     with pytest.raises(FileNotFoundError, match="Registry não encontrado"):
         reg.load_registry()
+
+
+def test_registry_extended_fields(clified_root, monkeypatch) -> None:
+    import textwrap
+
+    content = textwrap.dedent(
+        """
+        workspace:
+          root: ".."
+          name: "Test"
+
+        tools:
+          ext:
+            kind: python
+            folder: ext-tool
+            cli_name: ext
+            python_module: ext
+            description: "Extended"
+            custom_install: clified.hooks:noop
+            install_before_mode: venv_only
+            install_order: -5
+            post_install: clified.hooks:noop
+        """,
+    ).strip()
+    path = clified_root / "tools.yaml"
+    path.write_text(content, encoding="utf-8")
+    monkeypatch.setenv("CLIFIED_ROOT", str(clified_root))
+    monkeypatch.setenv("CLIFIED_TOOLS", str(path))
+
+    reg.load_registry()
+    spec = reg.get_tool("ext")
+
+    assert spec.custom_install == "clified.hooks:noop"
+    assert spec.install_before_mode == "venv_only"
+    assert spec.install_order == -5

@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import textwrap
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture
@@ -15,7 +18,9 @@ def clified_root(tmp_path: Path) -> Path:
     root.mkdir()
     (root / "config").mkdir()
     (root / "src" / "clified").mkdir(parents=True)
-    (root / "pyproject.toml").write_text("[project]\nname = 'clified'\n", encoding="utf-8")
+    (root / "pyproject.toml").write_text(
+        "[project]\nname = 'clified'\n", encoding="utf-8"
+    )
     return root
 
 
@@ -35,7 +40,7 @@ def sample_tools_yaml(clified_root: Path) -> Path:
             cli_name: demo
             python_module: demo
             description: "Ferramenta de teste"
-        """
+        """,
     ).strip()
     path = clified_root / "tools.yaml"
     path.write_text(content, encoding="utf-8")

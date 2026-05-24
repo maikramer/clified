@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import sys
-from io import StringIO
 
 import pytest
 
@@ -31,9 +30,12 @@ def test_output_quiet_suppresses_info(capsys) -> None:
 def test_handle_cli_errors_config_exit(monkeypatch) -> None:
     @handle_cli_errors
     def boom() -> None:
-        raise ConfigError("cfg inválida")
+        msg = "cfg inválida"
+        raise ConfigError(msg)
 
-    monkeypatch.setattr(sys, "exit", lambda code: (_ for _ in ()).throw(SystemExit(code)))
+    monkeypatch.setattr(
+        sys, "exit", lambda code: (_ for _ in ()).throw(SystemExit(code))
+    )
 
     with pytest.raises(SystemExit) as exc:
         boom()
