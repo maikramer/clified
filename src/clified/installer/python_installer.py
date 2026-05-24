@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .base import BaseInstaller, has_uv, install_all_constraint_argv, uv_cmd
-from .registry import LocalPackage, SharedPythonConfig
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from .registry import LocalPackage, SharedPythonConfig
 
 _PIP_BOOTSTRAP = ("pip", "setuptools>=68,<82", "wheel")
 
@@ -132,7 +136,7 @@ class PythonProjectInstaller(BaseInstaller):
                 self.logger.success(f"Venv removido: {self.venv_dir}")
                 self.venv_exists = False
             except OSError as e:
-                self.logger.error(f"Erro ao remover venv: {e}")
+                self.logger.exception(f"Erro ao remover venv: {e}")
                 return False
 
         self.logger.success(f"{self.project_name} desinstalado.")
@@ -167,9 +171,7 @@ class PythonProjectInstaller(BaseInstaller):
     def _venv_abi_ok(self, abi: tuple[int, int]) -> bool:
         if abi < self.min_python:
             return False
-        if self.max_python is not None and abi > self.max_python:
-            return False
-        return True
+        return not (self.max_python is not None and abi > self.max_python)
 
     def ensure_project_venv(self) -> bool:
         if self.venv_python.is_file():
@@ -179,14 +181,14 @@ class PythonProjectInstaller(BaseInstaller):
                 self.logger.info(f"Venv do projecto: {self.venv_dir}")
                 return True
             if abi is None:
-                self.logger.warn(".venv incompleto; recriando.")
+                self.logger.warning(".venv incompleto; recriando.")
             elif abi < self.min_python:
-                self.logger.warn(
-                    f"Venv usa Python {abi[0]}.{abi[1]} (mínimo {self.min_python[0]}.{self.min_python[1]}); recriando."
+                self.logger.warning(
+                    f"Venv usa Python {abi[0]}.{abi[1]} (mínimo {self.min_python[0]}.{self.min_python[1]}); recriando.",
                 )
             elif self.max_python is not None:
-                self.logger.warn(
-                    f"Venv usa Python {abi[0]}.{abi[1]} (máximo {self.max_python[0]}.{self.max_python[1]}); recriando."
+                self.logger.warning(
+                    f"Venv usa Python {abi[0]}.{abi[1]} (máximo {self.max_python[0]}.{self.max_python[1]}); recriando.",
                 )
             self.logger.step(f"Removendo {self.venv_dir}…")
             shutil.rmtree(self.venv_dir, ignore_errors=True)
@@ -198,24 +200,36 @@ class PythonProjectInstaller(BaseInstaller):
             self.logger.step(f"Criando venv com uv (Python {py_version})...")
             try:
                 subprocess.run(
-                    [uv_cmd(), "venv", str(self.venv_dir), "--python", py_version, "--seed", "--clear"],
+                    [
+                        uv_cmd(),
+                        "venv",
+                        str(self.venv_dir),
+                        "--python",
+                        py_version,
+                        "--seed",
+                        "--clear",
+                    ],
                     check=True,
                 )
             except subprocess.CalledProcessError as e:
-                self.logger.error(f"Falha ao criar venv com uv: {e}")
+                self.logger.exception(f"Falha ao criar venv com uv: {e}")
                 return False
         else:
             self.logger.step(f"Criando venv em {self.venv_dir}...")
             try:
-                subprocess.run([self.python_cmd, "-m", "venv", str(self.venv_dir)], check=True)
+                subprocess.run(
+                    [self.python_cmd, "-m", "venv", str(self.venv_dir)], check=True
+                )
             except subprocess.CalledProcessError as e:
-                self.logger.error(f"Falha ao criar venv: {e}")
+                self.logger.exception(f"Falha ao criar venv: {e}")
                 if not self.is_windows:
                     self.logger.info("Em Debian/Ubuntu: sudo apt install python3-venv")
                 return False
 
         if not self.venv_python.is_file():
-            self.logger.error(f"Python não encontrado após criar venv: {self.venv_python}")
+            self.logger.error(
+                f"Python não encontrado após criar venv: {self.venv_python}"
+            )
             return False
 
         self.venv_exists = True
@@ -237,7 +251,16 @@ class PythonProjectInstaller(BaseInstaller):
         if self._use_uv:
             self.logger.info("Usando uv para instalar dependências")
             subprocess.run(
-                [uv_cmd(), "pip", "install", "--python", python, "pip", "setuptools>=68,<82", "wheel"],
+                [
+                    uv_cmd(),
+                    "pip",
+                    "install",
+                    "--python",
+                    python,
+                    "pip",
+                    "setuptools>=68,<82",
+                    "wheel",
+                ],
                 check=True,
                 cwd=_root,
             )
@@ -250,16 +273,22 @@ class PythonProjectInstaller(BaseInstaller):
 
         if self.shared_python is not None:
             shared_root = (self.workspace_root / self.shared_python.path).resolve()
-            if (shared_root / "pyproject.toml").is_file() or (shared_root / "setup.py").is_file():
+            if (shared_root / "pyproject.toml").is_file() or (
+                shared_root / "setup.py"
+            ).is_file():
                 self.logger.info(f"Sincronizando pacote partilhado: {shared_root}")
-                subprocess.run([*pip_cmd, *constr, "-e", str(shared_root)], check=True, cwd=_root)
+                subprocess.run(
+                    [*pip_cmd, *constr, "-e", str(shared_root)], check=True, cwd=_root
+                )
 
         if not self.skip_pytorch:
             self.install_pytorch(pip_cmd, cwd=self.project_root)
 
         self.logger.info("Instalando pacote em modo editável...")
         if self._use_uv:
-            subprocess.run([*pip_cmd, *constr, "-e", str(self.project_root)], check=True, cwd=_root)
+            subprocess.run(
+                [*pip_cmd, *constr, "-e", str(self.project_root)], check=True, cwd=_root
+            )
         else:
             subprocess.run(
                 [python, "-m", "pip", "install", *constr, "-e", str(self.project_root)],
@@ -272,7 +301,11 @@ class PythonProjectInstaller(BaseInstaller):
 
     def _write_pth_files(self) -> None:
         if self.shared_python is not None:
-            shared_src = (self.workspace_root / self.shared_python.path / self.shared_python.src_subpath).resolve()
+            shared_src = (
+                self.workspace_root
+                / self.shared_python.path
+                / self.shared_python.src_subpath
+            ).resolve()
             if shared_src.is_dir():
                 ok = link_local_src(
                     venv_dir=self.venv_dir,
@@ -280,7 +313,9 @@ class PythonProjectInstaller(BaseInstaller):
                     import_name=self.shared_python.import_name,
                 )
                 if ok:
-                    self.logger.info(f"PTH: {self.shared_python.import_name} → {shared_src}")
+                    self.logger.info(
+                        f"PTH: {self.shared_python.import_name} → {shared_src}"
+                    )
 
         project_src = (self.project_root / "src").resolve()
         if project_src.is_dir() and self.cli_name:
@@ -292,7 +327,9 @@ class PythonProjectInstaller(BaseInstaller):
 
         for src_dir, import_name in self.cross_dep_folders:
             if src_dir.is_dir():
-                ok = link_local_src(venv_dir=self.venv_dir, src_dir=src_dir, import_name=import_name)
+                ok = link_local_src(
+                    venv_dir=self.venv_dir, src_dir=src_dir, import_name=import_name
+                )
                 if ok:
                     self.logger.info(f"PTH: {import_name} → {src_dir}")
 
@@ -301,7 +338,9 @@ class PythonProjectInstaller(BaseInstaller):
             if not src.is_dir():
                 src = (self.workspace_root / pkg.path).resolve()
             if src.is_dir():
-                ok = link_local_src(venv_dir=self.venv_dir, src_dir=src, import_name=pkg.import_name)
+                ok = link_local_src(
+                    venv_dir=self.venv_dir, src_dir=src, import_name=pkg.import_name
+                )
                 if ok:
                     self.logger.info(f"PTH: {pkg.import_name} → {src}")
 

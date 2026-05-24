@@ -1,6 +1,6 @@
 [project]
 name = "clified"
-version = "0.2.0"
+version = "0.3.0"
 description = "Instalador universal e biblioteca CLI para ferramentas Python, Rust e Bun"
 readme = "README.md"
 license = "MIT"
@@ -26,9 +26,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+cli = [
+    "click>=8",
+]
 dev = [
     "pytest>=8",
     "pytest-cov>=5",
+    "ruff>=0.9",
 ]
 
 [project.scripts]
@@ -50,6 +54,7 @@ packages = ["src/clified"]
 include = [
     "/src/clified",
     "/config",
+    "/examples",
     "/install.sh",
     "/install.ps1",
     "/install.bat",
@@ -65,3 +70,87 @@ pythonpath = ["src"]
 [tool.coverage.run]
 source = ["clified"]
 omit = ["tests/*"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E4", "E7", "E9", "F", "W",
+    "I", "N", "UP", "YTT", "ANN", "S", "BLE", "FBT", "B", "A", "COM", "C4",
+    "DTZ", "T10", "EM", "ISC", "ICN", "LOG", "G", "INP", "PIE", "T20", "PYI",
+    "PT", "Q", "RSE", "RET", "SLF", "SLOT", "SIM", "TID", "TCH", "ARG", "PTH",
+    "PL", "TRY", "PERF", "FURB", "RUF",
+]
+ignore = [
+    "COM812",
+    "ISC001",
+    "G004",
+    "TRY401",
+    "TRY300",
+    "ANN401",
+    "PLW0603",
+    "S101",
+    "PLR2004",
+    "G010",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",
+    "ANN",
+    "PLR2004",
+    "ARG001",
+    "ARG002",
+    "SLF001",
+    "T201",
+    "INP001",
+    "PLC0415",
+    "TC002",
+    "TC003",
+    "S108",
+]
+"src/clified/installer/**/*.py" = [
+    "S603",
+    "S607",
+    "PLR0913",
+    "C901",
+    "PLR0912",
+    "PLW1510",
+    "BLE001",
+    "S110",
+    "PTH123",
+    "PLC0415",
+    "N806",
+]
+"src/clified/hooks/**/*.py" = ["S603"]
+"src/clified/cli/progress.py" = ["PERF203", "BLE001"]
+"src/clified/cli/output.py" = ["FBT001", "FBT002"]
+"src/clified/core/retry.py" = ["A004", "S311", "BLE001"]
+"src/clified/core/state_store.py" = ["RUF012"]
+"src/clified/core/circuit_breaker.py" = ["TC002"]
+"src/clified/patterns/**/*.py" = ["RUF012", "PERF401"]
+"src/clified/installer/unified.py" = [
+    "PLC0415",
+    "TC001",
+    "TC003",
+    "S110",
+    "BLE001",
+    "TRY400",
+]
+"src/clified/patterns/reporter.py" = ["TC001"]
+"src/clified/installer/__init__.py" = ["PLC0415"]
+"src/clified/cli/app.py" = ["FBT001", "ANN401"]
+"src/clified/cli/decorators.py" = ["ANN202", "ANN002", "ANN003", "TRY400", "BLE001"]
+"src/clified/core/__init__.py" = ["A004"]
+"src/clified/core/exceptions.py" = ["A001", "A004"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.ruff.lint.flake8-type-checking]
+strict = true

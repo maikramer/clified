@@ -1,0 +1,18 @@
+# Exemplo: registrar pc CLI (ProjetoCursor) via Clified
+
+workspace:
+  root: "/home/maikeu/GitClones/ProjetoCursor"
+  name: "ProjetoCursor"
+
+tools:
+  pc:
+    name: "PC CLI"
+    kind: python
+    folder: .
+    cli_name: pc
+    python_module: pc.cli.commands
+    description: "Flutter + Supabase + deploy — Projeto Cursor"
+    min_python: [3, 10]
+    # O pc usa tools/requirements.txt; custom_install pode chamar script próprio:
+    # custom_install: pc.install_hooks:install_in_venv
+    post_install: clified.hooks:register_cursor_skill

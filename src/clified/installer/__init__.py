@@ -41,4 +41,5 @@ def __getattr__(name: str) -> object:
         from .unified import install_all, install_tool
 
         return install_tool if name == "install_tool" else install_all
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    msg = f"module {__name__!r} has no attribute {name!r}"
+    raise AttributeError(msg)

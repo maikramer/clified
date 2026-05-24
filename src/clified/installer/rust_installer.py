@@ -5,9 +5,12 @@ from __future__ import annotations
 import platform
 import shutil
 import subprocess
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .base import BaseInstaller
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class RustProjectInstaller(BaseInstaller):
@@ -30,8 +33,12 @@ class RustProjectInstaller(BaseInstaller):
         )
         self.cargo_bin_name = cargo_bin_name
         ext = ".exe" if self.is_windows else ""
-        self.release_binary = self.project_root / "target" / "release" / f"{cargo_bin_name}{ext}"
-        self.debug_binary = self.project_root / "target" / "debug" / f"{cargo_bin_name}{ext}"
+        self.release_binary = (
+            self.project_root / "target" / "release" / f"{cargo_bin_name}{ext}"
+        )
+        self.debug_binary = (
+            self.project_root / "target" / "debug" / f"{cargo_bin_name}{ext}"
+        )
         self.installed_binary = self.bin_dir / f"{cli_name}{ext}"
 
     def check_cargo(self) -> bool:
@@ -46,7 +53,7 @@ class RustProjectInstaller(BaseInstaller):
             self.logger.success(f"Rust: {result.stdout.strip()}")
             return True
         except (subprocess.CalledProcessError, FileNotFoundError):
-            self.logger.warn("cargo não encontrado no PATH")
+            self.logger.warning("cargo não encontrado no PATH")
             return False
 
     def get_existing_binary(self) -> Path | None:
@@ -68,13 +75,15 @@ class RustProjectInstaller(BaseInstaller):
             self.logger.success(f"Build: target/release/{self.cargo_bin_name}")
             return True
         except subprocess.CalledProcessError as e:
-            self.logger.error(f"Build falhou: {e}")
+            self.logger.exception(f"Build falhou: {e}")
             return False
         except FileNotFoundError:
-            self.logger.error("cargo não encontrado. Instale Rust: https://rustup.rs")
+            self.logger.exception(
+                "cargo não encontrado. Instale Rust: https://rustup.rs"
+            )
             return False
         except subprocess.TimeoutExpired:
-            self.logger.error("Build timeout")
+            self.logger.exception("Build timeout")
             return False
 
     def install_binary(self) -> bool:
@@ -103,7 +112,7 @@ class RustProjectInstaller(BaseInstaller):
             self.logger.success(f"{self.cli_name} instalado em {dest}")
             return True
         except Exception as e:
-            self.logger.error(f"Erro ao instalar: {e}")
+            self.logger.exception(f"Erro ao instalar: {e}")
             return False
 
     def uninstall(self) -> bool:
@@ -115,7 +124,7 @@ class RustProjectInstaller(BaseInstaller):
             self.logger.success(f"{self.project_name} desinstalado.")
             return True
         except Exception as e:
-            self.logger.error(f"Erro ao desinstalar: {e}")
+            self.logger.exception(f"Erro ao desinstalar: {e}")
             return False
 
     def test_installation(self) -> bool:
@@ -130,10 +139,10 @@ class RustProjectInstaller(BaseInstaller):
             if result.returncode == 0:
                 self.logger.success(f"Versão: {result.stdout.strip()}")
                 return True
-            self.logger.warn("Retornou código não-zero")
+            self.logger.warning("Retornou código não-zero")
             return True
         except Exception as e:
-            self.logger.warn(f"Não foi possível testar: {e}")
+            self.logger.warning(f"Não foi possível testar: {e}")
             return True
 
     def run(self) -> bool:

@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-TOOLS: dict[str, "ToolSpec"] = {}
+TOOLS: dict[str, ToolSpec] = {}
 WORKSPACE: WorkspaceConfig | None = None
 _CLIFIED_ROOT: Path | None = None
 
@@ -64,6 +64,9 @@ class ToolSpec:
     cross_deps: tuple[str, ...] = ()
     local_packages: tuple[LocalPackage, ...] = ()
     post_install: str = ""
+    custom_install: str = ""
+    install_before_mode: str = ""  # "" | "venv_only"
+    install_order: int | None = None
 
     bun_cli_script: str = ""
     bun_build_command: str = "build"
@@ -150,25 +153,36 @@ def _parse_tool(key: str, data: dict[str, Any]) -> ToolSpec:
         cross_deps=tuple(str(k) for k in data.get("cross_deps") or ()),
         local_packages=_parse_local_packages(data.get("local_packages")),
         post_install=str(data.get("post_install", "")).strip(),
+        custom_install=str(data.get("custom_install", "")).strip(),
+        install_before_mode=str(data.get("install_before_mode", "")).strip().lower(),
+        install_order=int(data["install_order"])
+        if data.get("install_order") is not None
+        else None,
         bun_cli_script=str(data.get("bun_cli_script", "")).strip(),
-        bun_build_command=str(data.get("bun_build_command", "build")).strip() or "build",
-        bun_install_args=tuple(str(a) for a in data.get("bun_install_args") or ("install", "--frozen-lockfile")),
+        bun_build_command=str(data.get("bun_build_command", "build")).strip()
+        or "build",
+        bun_install_args=tuple(
+            str(a)
+            for a in data.get("bun_install_args") or ("install", "--frozen-lockfile")
+        ),
     )
 
 
-def load_registry(path: Path | None = None) -> tuple[WorkspaceConfig, dict[str, ToolSpec]]:
+def load_registry(
+    path: Path | None = None,
+) -> tuple[WorkspaceConfig, dict[str, ToolSpec]]:
     """Carrega ``tools.yaml`` e actualiza o registry global."""
     global TOOLS, WORKSPACE
 
     yaml_path = path or tools_yaml_path()
     if not yaml_path.is_file():
-        raise FileNotFoundError(
+        msg = (
             f"Registry não encontrado: {yaml_path}\n"
             "Copie tools.yaml.example para tools.yaml e registe as suas ferramentas."
         )
+        raise FileNotFoundError(msg)
 
-    with open(yaml_path, encoding="utf-8") as f:
-        raw = yaml.safe_load(f) or {}
+    raw = yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {}
 
     ws_raw = raw.get("workspace") or {}
     root_rel = str(ws_raw.get("root", "..")).strip() or ".."
@@ -208,7 +222,7 @@ def get_workspace() -> WorkspaceConfig:
     return WORKSPACE
 
 
-def try_find_workspace_root(start: Path | None = None) -> Path | None:
+def try_find_workspace_root(_start: Path | None = None) -> Path | None:
     """Devolve a raiz do workspace se ``tools.yaml`` existir."""
     try:
         return get_workspace().root
@@ -221,9 +235,11 @@ def find_workspace_root(start: Path | None = None) -> Path:
     ws = try_find_workspace_root(start)
     if ws is not None:
         return ws
-    raise FileNotFoundError(
-        "Workspace não configurado. Defina CLIFIED_ROOT/CLIFIED_TOOLS ou crie tools.yaml em clified/."
+    msg = (
+        "Workspace não configurado. Defina CLIFIED_ROOT/CLIFIED_TOOLS "
+        "ou crie tools.yaml em clified/."
     )
+    raise FileNotFoundError(msg)
 
 
 def list_available_tools(workspace: Path | None = None) -> list[ToolSpec]:
@@ -249,4 +265,5 @@ def get_tool(name: str) -> ToolSpec:
                 return spec
 
     available = ", ".join(sorted(TOOLS.keys())) or "(nenhuma)"
-    raise KeyError(f"Ferramenta desconhecida: {name!r}. Registadas em tools.yaml: {available}")
+    msg = f"Ferramenta desconhecida: {name!r}. Registadas em tools.yaml: {available}"
+    raise KeyError(msg)

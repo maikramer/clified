@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import threading
-import time
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any
+
+from typing_extensions import Self
 
 from clified.logging import Logger
 
 from .exceptions import CircuitBreakerError
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class CircuitState(Enum):
@@ -26,7 +30,7 @@ class CircuitOpenError(CircuitBreakerError):
         self.circuit_name = circuit_name
         self.time_until_retry = time_until_retry
         super().__init__(
-            f"Circuit '{circuit_name}' aberto. Tente novamente em {time_until_retry:.0f}s"
+            f"Circuit '{circuit_name}' aberto. Tente novamente em {time_until_retry:.0f}s",
         )
 
 
@@ -37,7 +41,9 @@ class CircuitBreakerConfig:
     recovery_timeout: int = 60
     half_open_max_calls: int = 3
     failure_window: int = 300
-    excluded_exceptions: tuple = field(default_factory=lambda: (KeyboardInterrupt, SystemExit))
+    excluded_exceptions: tuple = field(
+        default_factory=lambda: (KeyboardInterrupt, SystemExit)
+    )
 
 
 @dataclass
@@ -77,7 +83,9 @@ class CircuitBreaker:
     def _should_attempt_recovery(self) -> bool:
         if self._opened_at is None:
             return False
-        return (datetime.now() - self._opened_at).total_seconds() >= self.config.recovery_timeout
+        return (
+            datetime.now(tz=UTC) - self._opened_at
+        ).total_seconds() >= self.config.recovery_timeout
 
     def _transition_to(self, new_state: CircuitState) -> None:
         if self._state == new_state:
@@ -89,7 +97,7 @@ class CircuitBreaker:
             self._successes_in_half_open = 0
             self._calls_in_half_open = 0
         elif new_state == CircuitState.OPEN:
-            self._opened_at = datetime.now()
+            self._opened_at = datetime.now(tz=UTC)
         elif new_state == CircuitState.CLOSED:
             self._failures.clear()
             self._opened_at = None
@@ -110,14 +118,15 @@ class CircuitBreaker:
                 return
             self._stats.total_calls += 1
             self._stats.failed_calls += 1
-            self._failures.append(datetime.now())
-            if self._state == CircuitState.HALF_OPEN:
-                self._transition_to(CircuitState.OPEN)
-            elif self._state == CircuitState.CLOSED and self._count_recent_failures() >= self.config.failure_threshold:
+            self._failures.append(datetime.now(tz=UTC))
+            if self._state == CircuitState.HALF_OPEN or (
+                self._state == CircuitState.CLOSED
+                and self._count_recent_failures() >= self.config.failure_threshold
+            ):
                 self._transition_to(CircuitState.OPEN)
 
     def _count_recent_failures(self) -> int:
-        cutoff = datetime.now() - timedelta(seconds=self.config.failure_window)
+        cutoff = datetime.now(tz=UTC) - timedelta(seconds=self.config.failure_window)
         while self._failures and self._failures[0] < cutoff:
             self._failures.popleft()
         return len(self._failures)
@@ -140,7 +149,7 @@ class CircuitBreaker:
         if not self.allow_request():
             remaining = float(self.config.recovery_timeout)
             if self._opened_at:
-                elapsed = (datetime.now() - self._opened_at).total_seconds()
+                elapsed = (datetime.now(tz=UTC) - self._opened_at).total_seconds()
                 remaining = max(0.0, self.config.recovery_timeout - elapsed)
             raise CircuitOpenError(self.name, remaining)
         try:
@@ -156,7 +165,7 @@ class CircuitBreakerRegistry:
     _instance: CircuitBreakerRegistry | None = None
     _lock = threading.Lock()
 
-    def __new__(cls) -> CircuitBreakerRegistry:
+    def __new__(cls) -> Self:
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
@@ -165,7 +174,9 @@ class CircuitBreakerRegistry:
                     cls._instance = inst
         return cls._instance  # type: ignore[return-value]
 
-    def get_or_create(self, name: str, config: CircuitBreakerConfig | None = None) -> CircuitBreaker:
+    def get_or_create(
+        self, name: str, config: CircuitBreakerConfig | None = None
+    ) -> CircuitBreaker:
         if name not in self._circuits:
             self._circuits[name] = CircuitBreaker(name=name, config=config)
         return self._circuits[name]
@@ -174,5 +185,7 @@ class CircuitBreakerRegistry:
 circuit_registry = CircuitBreakerRegistry()
 
 
-def get_circuit_breaker(name: str, config: CircuitBreakerConfig | None = None) -> CircuitBreaker:
+def get_circuit_breaker(
+    name: str, config: CircuitBreakerConfig | None = None
+) -> CircuitBreaker:
     return circuit_registry.get_or_create(name, config)

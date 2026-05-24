@@ -57,6 +57,10 @@ class OutputFormatter:
             return
         self._console.print(f"[yellow]{message}[/yellow]")
 
+    def warn(self, message: str) -> None:
+        """Alias de ``warning``."""
+        self.warning(message)
+
     def data(self, payload: dict[str, Any], title: str = "") -> None:
         if self.json_mode:
             self._print_json({"status": "success", **payload})
@@ -90,3 +94,10 @@ class OutputFormatter:
         sys.stdout.write(json.dumps(obj, indent=2, default=str, ensure_ascii=False))
         sys.stdout.write("\n")
         sys.stdout.flush()
+
+
+def get_output_formatter(ctx: Any = None) -> OutputFormatter:
+    """Obtém formatter do contexto Click ou cria um por defeito."""
+    if ctx is not None and hasattr(ctx, "obj") and ctx.obj and "output" in ctx.obj:
+        return ctx.obj["output"]
+    return OutputFormatter()

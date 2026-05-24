@@ -34,7 +34,8 @@ class LoggingConfig(BaseModel):
         valid = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
         upper = v.upper()
         if upper not in valid:
-            raise ValueError(f"Nível inválido: {v}. Use: {sorted(valid)}")
+            msg = f"Nível inválido: {v}. Use: {sorted(valid)}"
+            raise ValueError(msg)
         return upper
 
 
@@ -77,7 +78,9 @@ class ConfigManager:
     def get_config(self) -> ClifiedConfig:
         if self._config is None:
             self._load()
-        assert self._config is not None
+        if self._config is None:
+            msg = "Configuração não carregada"
+            raise ConfigError(msg)
         return self._config
 
     def _load(self) -> None:
@@ -90,7 +93,8 @@ class ConfigManager:
                     if isinstance(loaded, dict):
                         data = loaded
             except Exception as exc:
-                raise ConfigError(f"Erro ao ler {self.config_file}: {exc}") from exc
+                msg = f"Erro ao ler {self.config_file}: {exc}"
+                raise ConfigError(msg) from exc
         self._config = ClifiedConfig.model_validate(data)
 
     def save(self) -> None:
@@ -99,8 +103,10 @@ class ConfigManager:
         payload = cfg.model_dump(mode="json")
         payload["base_dir"] = str(cfg.base_dir)
         payload["install"]["prefix"] = str(cfg.install.prefix)
-        with open(self.config_file, "w", encoding="utf-8") as f:
-            yaml.safe_dump(payload, f, default_flow_style=False, allow_unicode=True)
+        self.config_file.write_text(
+            yaml.safe_dump(payload, default_flow_style=False, allow_unicode=True),
+            encoding="utf-8",
+        )
 
     def reload(self) -> ClifiedConfig:
         self._config = None

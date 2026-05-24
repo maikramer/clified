@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .base import BaseInstaller
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class BunProjectInstaller(BaseInstaller):
@@ -29,7 +32,9 @@ class BunProjectInstaller(BaseInstaller):
             project_root=project_root,
             install_prefix=install_prefix,
         )
-        self.cli_script = cli_script or (self.project_root / "scripts" / f"{cli_name}-cli.mjs")
+        self.cli_script = cli_script or (
+            self.project_root / "scripts" / f"{cli_name}-cli.mjs"
+        )
         self.build_command = build_command
         self.install_args = install_args
 
@@ -38,15 +43,25 @@ class BunProjectInstaller(BaseInstaller):
         bun = shutil.which("bun")
         if not bun:
             self.logger.error(
-                "Bun não encontrado. Instale: https://bun.sh (curl -fsSL https://bun.sh/install | bash)"
+                "Bun não encontrado. Instale: https://bun.sh (curl -fsSL https://bun.sh/install | bash)",
             )
             return False
         try:
-            out = subprocess.run([bun, "--version"], capture_output=True, text=True, check=True, timeout=10)
+            out = subprocess.run(
+                [bun, "--version"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=10,
+            )
             self.logger.success(f"Bun: {(out.stdout or out.stderr or '').strip()}")
             return True
-        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as e:
-            self.logger.error(f"Bun não executável: {e}")
+        except (
+            subprocess.CalledProcessError,
+            FileNotFoundError,
+            subprocess.TimeoutExpired,
+        ) as e:
+            self.logger.exception(f"Bun não executável: {e}")
             return False
 
     def check_node(self) -> bool:
@@ -56,11 +71,21 @@ class BunProjectInstaller(BaseInstaller):
             self.logger.error("Node.js não encontrado (necessário para wrappers .mjs).")
             return False
         try:
-            out = subprocess.run([node, "--version"], capture_output=True, text=True, check=True, timeout=5)
+            out = subprocess.run(
+                [node, "--version"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=5,
+            )
             self.logger.success(f"Node: {(out.stdout or out.stderr or '').strip()}")
             return True
-        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as e:
-            self.logger.error(f"Node não executável: {e}")
+        except (
+            subprocess.CalledProcessError,
+            FileNotFoundError,
+            subprocess.TimeoutExpired,
+        ) as e:
+            self.logger.exception(f"Node não executável: {e}")
             return False
 
     def install_dependencies(self) -> bool:
@@ -68,14 +93,19 @@ class BunProjectInstaller(BaseInstaller):
         bun = shutil.which("bun")
         assert bun is not None
         try:
-            subprocess.run([bun, *self.install_args], cwd=self.project_root, check=True, timeout=600)
+            subprocess.run(
+                [bun, *self.install_args],
+                cwd=self.project_root,
+                check=True,
+                timeout=600,
+            )
             self.logger.success("Dependências instaladas")
             return True
         except subprocess.CalledProcessError as e:
-            self.logger.error(f"bun install falhou: {e}")
+            self.logger.exception(f"bun install falhou: {e}")
             return False
         except subprocess.TimeoutExpired:
-            self.logger.error("bun install: timeout")
+            self.logger.exception("bun install: timeout")
             return False
 
     def build_project(self) -> bool:
@@ -83,14 +113,19 @@ class BunProjectInstaller(BaseInstaller):
         bun = shutil.which("bun")
         assert bun is not None
         try:
-            subprocess.run([bun, "run", self.build_command], cwd=self.project_root, check=True, timeout=900)
+            subprocess.run(
+                [bun, "run", self.build_command],
+                cwd=self.project_root,
+                check=True,
+                timeout=900,
+            )
             self.logger.success("Build concluído")
             return True
         except subprocess.CalledProcessError as e:
-            self.logger.error(f"bun run build falhou: {e}")
+            self.logger.exception(f"bun run build falhou: {e}")
             return False
         except subprocess.TimeoutExpired:
-            self.logger.error("bun run build: timeout")
+            self.logger.exception("bun run build: timeout")
             return False
 
     def install_wrapper(self) -> bool:
@@ -122,31 +157,39 @@ class BunProjectInstaller(BaseInstaller):
 
     def test_installation(self) -> bool:
         self.logger.header("Testando instalação")
-        w = self.bin_dir / (f"{self.cli_name}.cmd" if self.is_windows else self.cli_name)
+        w = self.bin_dir / (
+            f"{self.cli_name}.cmd" if self.is_windows else self.cli_name
+        )
         if not w.is_file():
             return False
         try:
-            result = subprocess.run([str(w), "--version"], capture_output=True, text=True, timeout=15)
+            result = subprocess.run(
+                [str(w), "--version"], capture_output=True, text=True, timeout=15
+            )
             if result.returncode == 0:
                 self.logger.success(f"Versão: {(result.stdout or '').strip()}")
                 return True
-            self.logger.warn(f"{self.cli_name} --version retornou {result.returncode}")
+            self.logger.warning(
+                f"{self.cli_name} --version retornou {result.returncode}"
+            )
             return True
         except Exception as e:
-            self.logger.warn(f"Não foi possível testar: {e}")
+            self.logger.warning(f"Não foi possível testar: {e}")
             return True
 
     def uninstall(self) -> bool:
         self.logger.header(f"Desinstalando {self.project_name}")
         try:
-            w = self.bin_dir / (f"{self.cli_name}.cmd" if self.is_windows else self.cli_name)
+            w = self.bin_dir / (
+                f"{self.cli_name}.cmd" if self.is_windows else self.cli_name
+            )
             if w.exists():
                 w.unlink()
                 self.logger.success(f"Removido: {w}")
             self.logger.success(f"{self.project_name} desinstalado.")
             return True
         except OSError as e:
-            self.logger.error(f"Erro ao desinstalar: {e}")
+            self.logger.exception(f"Erro ao desinstalar: {e}")
             return False
 
     def run(self) -> bool:

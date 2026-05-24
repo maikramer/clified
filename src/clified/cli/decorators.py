@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import functools
 import sys
-from typing import Callable, Type
+from typing import TYPE_CHECKING
 
 from clified.core.exceptions import (
     ClifiedError,
@@ -17,6 +17,9 @@ from clified.core.exceptions import (
 )
 from clified.logging import Logger
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 logger = Logger()
 
 EXIT_SUCCESS = 0
@@ -24,8 +27,8 @@ EXIT_GENERAL_ERROR = 1
 EXIT_CONFIG_ERROR = 2
 EXIT_INFRA_ERROR = 3
 
-_CONFIG_EXCEPTIONS: tuple[Type[Exception], ...] = (ConfigError, ValidationError)
-_INFRA_EXCEPTIONS: tuple[Type[Exception], ...] = (
+_CONFIG_EXCEPTIONS: tuple[type[Exception], ...] = (ConfigError, ValidationError)
+_INFRA_EXCEPTIONS: tuple[type[Exception], ...] = (
     InfrastructureError,
     NetworkError,
     DeploymentError,

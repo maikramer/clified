@@ -71,7 +71,15 @@ class ErrorPatternLoader:
     """Carrega padrões de ``patterns/`` (base + services/*.json)."""
 
     DEFAULT_KEYWORDS: dict[str, list[str]] = {
-        "build": ["pip", "cargo", "npm", "compile", "install", "module not found", "rustc"],
+        "build": [
+            "pip",
+            "cargo",
+            "npm",
+            "compile",
+            "install",
+            "module not found",
+            "rustc",
+        ],
         "python": ["python", "pip", "venv", "pyproject", "ModuleNotFoundError"],
         "rust": ["cargo", "rustc", "rustup", "compiling"],
     }
@@ -112,7 +120,7 @@ class ErrorPatternLoader:
                         service=service,
                         related_errors=list(p.get("related_errors") or []),
                         docs_url=p.get("docs_url"),
-                    )
+                    ),
                 )
             info = ServiceInfo(
                 name=service,
@@ -161,7 +169,11 @@ class ErrorPatternLoader:
     def analyze_log(self, log: str, service: str | None = None) -> list[PatternMatch]:
         if service is None:
             service = self.detect_service(log)
-        patterns = self.get_patterns_for_service(service) if service else self.get_all_patterns()
+        patterns = (
+            self.get_patterns_for_service(service)
+            if service
+            else self.get_all_patterns()
+        )
         matches: list[PatternMatch] = []
         for pattern in patterns:
             match = pattern.find_match(log)
@@ -172,7 +184,7 @@ class ErrorPatternLoader:
                         matched_text=match.group(0),
                         start=match.start(),
                         end=match.end(),
-                    )
+                    ),
                 )
         seen: set[str] = set()
         unique: list[PatternMatch] = []
@@ -183,7 +195,9 @@ class ErrorPatternLoader:
                 unique.append(m)
         return unique
 
-    def get_diagnosis(self, log: str, service: str | None = None) -> dict[str, Any] | None:
+    def get_diagnosis(
+        self, log: str, service: str | None = None
+    ) -> dict[str, Any] | None:
         matches = self.analyze_log(log, service)
         return matches[0].to_dict() if matches else None
 

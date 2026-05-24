@@ -32,6 +32,10 @@ tools:
   #   extra_aliases: []
   #   needs_pytorch: false
   #   install_before: [other]    # instala outra tool antes
+  #   install_before_mode: venv_only  # só cross_deps/.pth, sem instalar a tool
+  #   install_order: 10            # ordem em ``clified-install all`` (menor = primeiro)
+  #   custom_install: mypkg.hooks:install_in_venv  # substitui pip install -e default
+  #   post_install: clified.hooks:register_mcp_serve
   #   cross_deps: [other]        # liga src/ de outra tool via .pth no venv
 
   # --- Rust (Cargo.toml) ---

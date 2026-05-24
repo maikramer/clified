@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 import threading
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from clified.logging import Logger
 
@@ -14,7 +14,7 @@ from clified.logging import Logger
 class StateStore:
     """Armazena estado em ``~/.clified/state.json`` (ou path customizado)."""
 
-    DEFAULT_STATE: dict[str, Any] = {
+    DEFAULT_STATE: ClassVar[dict[str, Any]] = {
         "metadata": {"version": "1.0", "created_at": None, "updated_at": None},
         "namespaces": {},
     }
@@ -33,24 +33,32 @@ class StateStore:
                     self._state = json.loads(self.path.read_text(encoding="utf-8"))
                 else:
                     self._state = json.loads(json.dumps(self.DEFAULT_STATE))
-                    self._state["metadata"]["created_at"] = datetime.now().isoformat()
+                    self._state["metadata"]["created_at"] = datetime.now(
+                        tz=UTC
+                    ).isoformat()
             except json.JSONDecodeError:
                 self.logger.warn("State corrompido; recriando.")
                 self._state = json.loads(json.dumps(self.DEFAULT_STATE))
             for key, default in self.DEFAULT_STATE.items():
                 if key not in self._state:
-                    self._state[key] = default if not isinstance(default, dict) else dict(default)
+                    self._state[key] = (
+                        default if not isinstance(default, dict) else dict(default)
+                    )
 
     def _save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._state["metadata"]["updated_at"] = datetime.now().isoformat()
+        self._state["metadata"]["updated_at"] = datetime.now(tz=UTC).isoformat()
         temp = self.path.with_suffix(".tmp")
-        temp.write_text(json.dumps(self._state, indent=2, ensure_ascii=False), encoding="utf-8")
+        temp.write_text(
+            json.dumps(self._state, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
         temp.replace(self.path)
 
     def get(self, namespace: str, key: str, default: Any = None) -> Any:
         with self._lock:
-            return self._state.get("namespaces", {}).get(namespace, {}).get(key, default)
+            return (
+                self._state.get("namespaces", {}).get(namespace, {}).get(key, default)
+            )
 
     def set(self, namespace: str, key: str, value: Any) -> None:
         with self._lock:
@@ -80,7 +88,7 @@ class StateStore:
     def clear_all(self) -> None:
         with self._lock:
             self._state = json.loads(json.dumps(self.DEFAULT_STATE))
-            self._state["metadata"]["created_at"] = datetime.now().isoformat()
+            self._state["metadata"]["created_at"] = datetime.now(tz=UTC).isoformat()
             self._save()
 
     def export_state(self) -> dict[str, Any]:
@@ -96,7 +104,9 @@ class StateStore:
 _store: StateStore | None = None
 
 
-def get_state_store(path: Path | None = None, logger: Logger | None = None) -> StateStore:
+def get_state_store(
+    path: Path | None = None, logger: Logger | None = None
+) -> StateStore:
     global _store
     if _store is None:
         _store = StateStore(path, logger)

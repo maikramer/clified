@@ -10,6 +10,7 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
+from clified.cli.output import OutputFormatter
 from clified.core.retry import RetryEngine, RetryPolicy
 from clified.logging import Logger
 from clified.patterns import get_pattern_loader
@@ -47,31 +48,39 @@ def _run_with_retry(action: str, func: Callable[[], bool], logger: Logger) -> bo
             _diagnose_failure(f"install action {action} failed", logger)
         return ok
 
-    engine = RetryEngine(policy=RetryPolicy(max_attempts=3, base_delay=2.0), logger=logger)
+    engine = RetryEngine(
+        policy=RetryPolicy(max_attempts=3, base_delay=2.0), logger=logger
+    )
     result = engine.execute(func)
     if not result.success and result.final_exception:
         _diagnose_failure(str(result.final_exception), logger)
     return result.success
 
 
-def _run_post_install(spec: ToolSpec, installer: PythonProjectInstaller) -> bool:
-    if not spec.post_install:
+def _run_hook(hook: str, installer: PythonProjectInstaller) -> bool:
+    if not hook:
         return True
-    if ":" not in spec.post_install:
-        Logger().error(f"post_install inválido (esperado modulo:funcao): {spec.post_install!r}")
+    if ":" not in hook:
+        Logger().error(f"Hook inválido (esperado modulo:funcao): {hook!r}")
         return False
-    module_path, func_name = spec.post_install.rsplit(":", 1)
+    module_path, func_name = hook.rsplit(":", 1)
     try:
         mod = importlib.import_module(module_path)
         func = getattr(mod, func_name)
         result = func(installer)
         return result is not False
     except Exception as exc:
-        Logger().error(f"post_install falhou ({spec.post_install}): {exc}")
+        Logger().error(f"Hook falhou ({hook}): {exc}")
         return False
 
 
-def _resolve_cross_deps(spec: ToolSpec, workspace: WorkspaceConfig) -> list[tuple[Path, str]]:
+def _run_post_install(spec: ToolSpec, installer: PythonProjectInstaller) -> bool:
+    return _run_hook(spec.post_install, installer)
+
+
+def _resolve_cross_deps(
+    spec: ToolSpec, workspace: WorkspaceConfig
+) -> list[tuple[Path, str]]:
     result: list[tuple[Path, str]] = []
     for dep_key in spec.cross_deps:
         try:
@@ -121,7 +130,15 @@ class _ToolPythonInstaller(PythonProjectInstaller):
         )
         self.spec = spec
 
-    def check_python(self, min_version: tuple[int, int] = (3, 10)) -> bool:
+    def install_in_venv(self) -> None:
+        if self.spec.custom_install:
+            if not _run_hook(self.spec.custom_install, self):
+                msg = f"custom_install falhou: {self.spec.custom_install}"
+                raise RuntimeError(msg)
+            return
+        super().install_in_venv()
+
+    def check_python(self, _min_version: tuple[int, int] = (3, 10)) -> bool:
         if self._use_uv:
             self.logger.info(
                 f"uv disponível — Python {self.spec.min_python[0]}.{self.spec.min_python[1]}+ "
@@ -132,6 +149,11 @@ class _ToolPythonInstaller(PythonProjectInstaller):
 
     def run(self) -> bool:
         for dep_key in self.spec.install_before:
+            if self.spec.install_before_mode == "venv_only":
+                self.logger.info(
+                    f"install_before_mode=venv_only: {dep_key!r} via cross_deps/.pth apenas"
+                )
+                continue
             self.logger.step(f"Instalando dependência: {dep_key}")
             if not install_tool(
                 dep_key,
@@ -250,6 +272,8 @@ def install_tool(
 
 
 def _install_all_sort_key(spec: ToolSpec) -> tuple[int, str]:
+    if spec.install_order is not None:
+        return (spec.install_order, spec.cli_name.lower())
     rank = 0
     if spec.needs_pytorch:
         rank = 0
@@ -356,7 +380,8 @@ def main(argv: list[str] | None = None) -> int:
         "tool",
         nargs="?",
         default=None,
-        help="Ferramenta a instalar (ou 'all'). Opções: " + ", ".join([*tool_names, "all"]),
+        help="Ferramenta a instalar (ou 'all'). Opções: "
+        + ", ".join([*tool_names, "all"]),
     )
     parser.add_argument(
         "--action",
@@ -364,17 +389,40 @@ def main(argv: list[str] | None = None) -> int:
         default="install",
         help="Acção (default: install)",
     )
-    parser.add_argument("--list", action="store_true", help="Listar ferramentas disponíveis")
-    parser.add_argument("--all", action="store_true", help="Instalar todas as ferramentas")
-    parser.add_argument("--prefix", default=None, help="Prefixo de instalação (default: ~/.local)")
+    parser.add_argument(
+        "--list", action="store_true", help="Listar ferramentas disponíveis"
+    )
+    parser.add_argument(
+        "--all", action="store_true", help="Instalar todas as ferramentas"
+    )
+    parser.add_argument(
+        "--prefix", default=None, help="Prefixo de instalação (default: ~/.local)"
+    )
     parser.add_argument(
         "--use-venv",
         action="store_true",
         help="(Legado) O instalador cria projecto/.venv automaticamente.",
     )
-    parser.add_argument("--skip-deps", action="store_true", help="Não instalar deps de sistema")
-    parser.add_argument("--skip-models", action="store_true", help="Reservado para hooks futuros")
+    parser.add_argument(
+        "--skip-deps", action="store_true", help="Não instalar deps de sistema"
+    )
+    parser.add_argument(
+        "--skip-models", action="store_true", help="Reservado para hooks futuros"
+    )
     parser.add_argument("--force", action="store_true", help="Forçar reinstalação")
+    parser.add_argument(
+        "--json", action="store_true", help="Saída JSON (machine-readable)"
+    )
+    parser.add_argument(
+        "-q", "--quiet", action="store_true", help="Suprime output decorativo"
+    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Modo verboso")
+    parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Não pedir confirmação (uninstall/reinstall)",
+    )
     parser.add_argument(
         "--python",
         default="python" if platform.system() == "Windows" else "python3",
@@ -382,10 +430,14 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     args = parser.parse_args(argv)
+
+    from clified.cli.output import OutputFormatter
+
+    output = OutputFormatter(json_mode=args.json, quiet=args.quiet)
     logger = Logger()
 
     if args.list:
-        _print_tool_list(available, workspace, logger)
+        _print_tool_list(available, workspace, logger, output=output)
         return 0
 
     if args.all and args.tool is not None:
@@ -448,12 +500,38 @@ def _build_epilog(available: list[ToolSpec], workspace: WorkspaceConfig) -> str:
     return "\n".join(lines)
 
 
-def _print_tool_list(available: list[ToolSpec], workspace: WorkspaceConfig, logger: Logger) -> None:
-    rows = [(f"Workspace", str(workspace.root))]
+def _print_tool_list(
+    available: list[ToolSpec],
+    workspace: WorkspaceConfig,
+    logger: Logger,
+    *,
+    output: OutputFormatter | None = None,
+) -> None:
+    out = output or OutputFormatter()
+    rows = [
+        {
+            "name": spec.cli_name,
+            "kind": spec.kind.value,
+            "description": spec.description,
+        }
+        for spec in available
+    ]
+    if out.is_json:
+        out.data(
+            {
+                "workspace": str(workspace.root),
+                "workspace_name": workspace.name,
+                "tools": rows,
+                "count": len(rows),
+            },
+            title="tools",
+        )
+        return
+    table_rows = [("Workspace", str(workspace.root))]
     for spec in available:
         kind = spec.kind.value.capitalize()
-        rows.append((f"{spec.cli_name} [{kind}]", spec.description))
-    logger.table(rows, title=f"Ferramentas — {workspace.name}")
+        table_rows.append((f"{spec.cli_name} [{kind}]", spec.description))
+    logger.table(table_rows, title=f"Ferramentas — {workspace.name}")
 
 
 if __name__ == "__main__":

@@ -6,12 +6,15 @@ import functools
 import random
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Callable, Type
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 from clified.logging import Logger
 
 from .exceptions import ConnectionError, RetryableError, TimeoutError
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 @dataclass
@@ -22,11 +25,16 @@ class RetryPolicy:
     exponential_base: float = 2.0
     jitter: bool = True
     jitter_factor: float = 0.25
-    retryable_exceptions: tuple[Type[Exception], ...] = field(
-        default_factory=lambda: (RetryableError, ConnectionError, TimeoutError, OSError)
+    retryable_exceptions: tuple[type[Exception], ...] = field(
+        default_factory=lambda: (
+            RetryableError,
+            ConnectionError,
+            TimeoutError,
+            OSError,
+        ),
     )
-    non_retryable_exceptions: tuple[Type[Exception], ...] = field(
-        default_factory=lambda: (KeyboardInterrupt, SystemExit, ValueError)
+    non_retryable_exceptions: tuple[type[Exception], ...] = field(
+        default_factory=lambda: (KeyboardInterrupt, SystemExit, ValueError),
     )
 
     def with_attempts(self, max_attempts: int) -> RetryPolicy:
@@ -59,7 +67,6 @@ class RetryResult:
     attempts: list[RetryAttempt] = field(default_factory=list)
     total_duration: float = 0.0
     final_exception: Exception | None = None
-
 
     @property
     def attempt_count(self) -> int:
@@ -98,21 +105,25 @@ class RetryEngine:
             return False
         if isinstance(exception, self.policy.non_retryable_exceptions):
             return False
-        if isinstance(exception, self.policy.retryable_exceptions):
-            return True
-        return False
+        return bool(isinstance(exception, self.policy.retryable_exceptions))
 
-    def execute(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> RetryResult:
+    def execute(
+        self, func: Callable[..., Any], *args: Any, **kwargs: Any
+    ) -> RetryResult:
         attempts: list[RetryAttempt] = []
         start = time.time()
         final_exception: Exception | None = None
 
         for attempt_num in range(1, self.policy.max_attempts + 1):
-            attempt = RetryAttempt(attempt_number=attempt_num, started_at=datetime.now())
+            attempt = RetryAttempt(
+                attempt_number=attempt_num, started_at=datetime.now(tz=UTC)
+            )
             if attempt_num > 1:
                 delay = self.calculate_delay(attempt_num)
                 attempt.delay_before = delay
-                self.logger.info(f"Retry {attempt_num}/{self.policy.max_attempts} em {delay:.1f}s...")
+                self.logger.info(
+                    f"Retry {attempt_num}/{self.policy.max_attempts} em {delay:.1f}s..."
+                )
                 if self.on_retry:
                     self.on_retry(attempt_num, final_exception, delay)
                 time.sleep(delay)
@@ -120,7 +131,7 @@ class RetryEngine:
             try:
                 result = func(*args, **kwargs)
                 attempt.success = True
-                attempt.ended_at = datetime.now()
+                attempt.ended_at = datetime.now(tz=UTC)
                 attempts.append(attempt)
                 return RetryResult(
                     success=True,
@@ -131,11 +142,11 @@ class RetryEngine:
             except Exception as exc:
                 attempt.success = False
                 attempt.exception = exc
-                attempt.ended_at = datetime.now()
+                attempt.ended_at = datetime.now(tz=UTC)
                 attempts.append(attempt)
                 final_exception = exc
                 self.logger.warn(
-                    f"Tentativa {attempt_num}/{self.policy.max_attempts} falhou: {str(exc)[:120]}"
+                    f"Tentativa {attempt_num}/{self.policy.max_attempts} falhou: {str(exc)[:120]}",
                 )
                 if not self.should_retry(exc, attempt_num):
                     break
@@ -148,7 +159,9 @@ class RetryEngine:
         )
 
 
-def with_retry(policy: RetryPolicy | None = None, logger: Logger | None = None):
+def with_retry(
+    policy: RetryPolicy | None = None, logger: Logger | None = None
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -158,7 +171,8 @@ def with_retry(policy: RetryPolicy | None = None, logger: Logger | None = None):
                 return result.result
             if result.final_exception:
                 raise result.final_exception
-            raise RuntimeError("Retry failed without exception")
+            msg = "Retry failed without exception"
+            raise RuntimeError(msg)
 
         return wrapper
 

@@ -48,7 +48,7 @@ def has_uv() -> bool:
 
 def uv_cmd() -> str:
     found = shutil.which("uv")
-    return found if found else "uv"
+    return found or "uv"
 
 
 def install_all_constraints_file() -> Path | None:
@@ -87,7 +87,9 @@ class BaseInstaller:
         self.project_name = project_name
         self.cli_name = cli_name
         self.project_root = project_root.resolve()
-        self.install_prefix = install_prefix or Path(os.environ.get("INSTALL_PREFIX", str(Path.home() / ".local")))
+        self.install_prefix = install_prefix or Path(
+            os.environ.get("INSTALL_PREFIX", str(Path.home() / ".local"))
+        )
         self.python_cmd = os.environ.get("PYTHON_CMD", python_cmd)
 
         self.plat = platform.system().lower()
@@ -129,28 +131,36 @@ class BaseInstaller:
                 return False
             return True
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            self.logger.error(f"Python não encontrado: {e}")
+            self.logger.exception(f"Python não encontrado: {e}")
             return False
 
     def install_system_deps(self) -> None:
         self.logger.step("Dependências do sistema...")
         if shutil.which("apt-get"):
             self.logger.info("Detectado: Debian/Ubuntu")
-            self.logger.warn("Opcional: sudo apt-get install python3-dev python3-venv git")
+            self.logger.warning(
+                "Opcional: sudo apt-get install python3-dev python3-venv git"
+            )
         elif shutil.which("dnf"):
             self.logger.info("Detectado: Fedora")
-            self.logger.warn("Opcional: sudo dnf install python3-devel python3-pip git")
+            self.logger.warning(
+                "Opcional: sudo dnf install python3-devel python3-pip git"
+            )
         elif shutil.which("pacman"):
             self.logger.info("Detectado: Arch Linux")
-            self.logger.warn("Opcional: sudo pacman -S python python-pip git base-devel")
+            self.logger.warning(
+                "Opcional: sudo pacman -S python python-pip git base-devel"
+            )
         elif self.is_windows:
             self.logger.info("Detectado: Windows")
-            self.logger.warn(
+            self.logger.warning(
                 "Python: python.org ou ``winget install Python.Python.3.12``. "
-                "CUDA: drivers NVIDIA + CUDA Toolkit (nvcc) para compilar extensões GPU."
+                "CUDA: drivers NVIDIA + CUDA Toolkit (nvcc) para compilar extensões GPU.",
             )
         else:
-            self.logger.warn("SO não reconhecido — instala Python 3.10+, pip e git manualmente.")
+            self.logger.warning(
+                "SO não reconhecido — instala Python 3.10+, pip e git manualmente."
+            )
 
     def _python_minor(self) -> int:
         try:
@@ -190,10 +200,20 @@ class BaseInstaller:
                             cuda_version = line.split("CUDA Version:")[1].split()[0]
                             self.logger.info(f"CUDA detectado: {cuda_version}")
                             cuda_major = int(cuda_version.split(".")[0])
-                            cuda_minor = int(cuda_version.split(".")[1]) if "." in cuda_version else 0
+                            cuda_minor = (
+                                int(cuda_version.split(".")[1])
+                                if "." in cuda_version
+                                else 0
+                            )
                             if py_minor >= 13 or cuda_major >= 13:
-                                self.logger.info(f"PyTorch via PyPI (CUDA {cuda_version})...")
-                                subprocess.run([*pip_cmd, *constr, "torch", "torchvision"], check=True, **_kw)
+                                self.logger.info(
+                                    f"PyTorch via PyPI (CUDA {cuda_version})..."
+                                )
+                                subprocess.run(
+                                    [*pip_cmd, *constr, "torch", "torchvision"],
+                                    check=True,
+                                    **_kw,
+                                )
                                 return
                             if cuda_major == 12 and cuda_minor >= 6:
                                 idx = "https://download.pytorch.org/whl/cu126"
@@ -203,23 +223,39 @@ class BaseInstaller:
                                 idx = "https://download.pytorch.org/whl/cu118"
                             self.logger.info(f"PyTorch ({idx.split('/')[-1]})...")
                             subprocess.run(
-                                [*pip_cmd, *constr, "torch", "torchvision", "--index-url", idx],
+                                [
+                                    *pip_cmd,
+                                    *constr,
+                                    "torch",
+                                    "torchvision",
+                                    "--index-url",
+                                    idx,
+                                ],
                                 check=True,
                                 **_kw,
                             )
                             return
                 else:
                     self.logger.info(
-                        "nvidia-smi sem 'CUDA Version' — PyTorch CUDA via PyPI..."
+                        "nvidia-smi sem 'CUDA Version' — PyTorch CUDA via PyPI...",
                     )
-                    subprocess.run([*pip_cmd, *constr, "torch", "torchvision"], check=True, **_kw)
+                    subprocess.run(
+                        [*pip_cmd, *constr, "torch", "torchvision"], check=True, **_kw
+                    )
                     return
             except Exception:
                 pass
 
         self.logger.info("Sem CUDA utilizável; PyTorch CPU...")
         subprocess.run(
-            [*pip_cmd, *constr, "torch", "torchvision", "--index-url", "https://download.pytorch.org/whl/cpu"],
+            [
+                *pip_cmd,
+                *constr,
+                "torch",
+                "torchvision",
+                "--index-url",
+                "https://download.pytorch.org/whl/cpu",
+            ],
             check=True,
             **_kw,
         )
@@ -269,7 +305,12 @@ class BaseInstaller:
         import winreg
 
         bin_str = str(self.bin_dir.resolve())
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Environment", 0, winreg.KEY_READ | winreg.KEY_WRITE)
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Environment",
+            0,
+            winreg.KEY_READ | winreg.KEY_WRITE,
+        )
         try:
             try:
                 path, typ = winreg.QueryValueEx(key, "Path")
@@ -291,7 +332,9 @@ class BaseInstaller:
             new_path = (stripped + ";" + bin_str) if stripped else bin_str
             winreg.SetValueEx(key, "Path", 0, typ, new_path)
         except OSError as e:
-            self.logger.warn(f"Não foi possível actualizar o PATH do utilizador: {e}")
+            self.logger.warning(
+                f"Não foi possível actualizar o PATH do utilizador: {e}"
+            )
             return False
         finally:
             winreg.CloseKey(key)
@@ -329,7 +372,7 @@ class BaseInstaller:
             with open(profile, "a", encoding="utf-8") as f:
                 f.write(block)
         except OSError as e:
-            self.logger.warn(f"Não foi possível actualizar {profile}: {e}")
+            self.logger.warning(f"Não foi possível actualizar {profile}: {e}")
             return False
 
         return True
@@ -343,15 +386,21 @@ class BaseInstaller:
             self.logger.success(f"{bin_str} está no PATH")
             return True
 
-        persisted = self._ensure_windows_user_path() if self.is_windows else self._ensure_unix_user_path()
+        persisted = (
+            self._ensure_windows_user_path()
+            if self.is_windows
+            else self._ensure_unix_user_path()
+        )
         os.environ["PATH"] = bin_str + sep + path_env
 
         if persisted:
-            self.logger.success(f"{bin_str} adicionado ao PATH permanente; activo nesta sessão.")
+            self.logger.success(
+                f"{bin_str} adicionado ao PATH permanente; activo nesta sessão."
+            )
             if not self.is_windows:
                 self.logger.info("Novo terminal: source ~/.profile")
         else:
-            self.logger.warn(f"{bin_str} adicionado só ao PATH desta sessão")
+            self.logger.warning(f"{bin_str} adicionado só ao PATH desta sessão")
             if not self.is_windows:
                 self.logger.info(f'Adicione manualmente: export PATH="{bin_str}:$PATH"')
             else:
@@ -359,7 +408,9 @@ class BaseInstaller:
 
         return persisted
 
-    def show_summary(self, commands: list[str], *, extras: list[str] | None = None) -> None:
+    def show_summary(
+        self, commands: list[str], *, extras: list[str] | None = None
+    ) -> None:
         lines = ["[bold]Comandos[/bold]" if self.logger.rich_available else "Comandos:"]
         for cmd in commands:
             if self.logger.rich_available:
@@ -375,20 +426,23 @@ class BaseInstaller:
         found = shutil.which(self.cli_name)
         if found:
             if self.logger.rich_available:
-                lines.append(f"{self.cli_name} no PATH: [bold green]{found}[/bold green]")
+                lines.append(
+                    f"{self.cli_name} no PATH: [bold green]{found}[/bold green]"
+                )
             else:
                 lines.append(f"✓ {self.cli_name} no PATH: {found}")
-        else:
-            if self.is_windows:
-                hint = f'[yellow]Adiciona ao PATH:[/yellow] $env:Path += ";{self.bin_dir}"'
-                if self.logger.rich_available:
-                    lines.append(hint)
-                else:
-                    lines.append(f"Adicione ao PATH: {self.bin_dir}")
-            elif self.logger.rich_available:
-                lines.append(f'[yellow]Adiciona ao PATH:[/yellow] export PATH="{self.bin_dir}:$PATH"')
+        elif self.is_windows:
+            hint = f'[yellow]Adiciona ao PATH:[/yellow] $env:Path += ";{self.bin_dir}"'
+            if self.logger.rich_available:
+                lines.append(hint)
             else:
-                lines.append(f'⚠ Adicione ao PATH: export PATH="{self.bin_dir}:$PATH"')
+                lines.append(f"Adicione ao PATH: {self.bin_dir}")
+        elif self.logger.rich_available:
+            lines.append(
+                f'[yellow]Adiciona ao PATH:[/yellow] export PATH="{self.bin_dir}:$PATH"'
+            )
+        else:
+            lines.append(f'⚠ Adicione ao PATH: export PATH="{self.bin_dir}:$PATH"')
 
         self.logger.panel(
             "\n".join(lines),

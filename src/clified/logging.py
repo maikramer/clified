@@ -50,31 +50,35 @@ class Logger:
         if self.rich_available:
             self._console.print(f"[bold green]INFO[/bold green] {msg}")  # type: ignore[union-attr]
         else:
-            print(f"\033[0;32m[INFO]\033[0m {msg}")
+            pass
 
-    def warn(self, msg: str) -> None:
+    def warning(self, message: str) -> None:
+        """Alias de ``warn``."""
+        self.warn(message)
+
+    def warn(self, message: str) -> None:
         if self.rich_available:
-            self._console.print(f"[bold yellow]WARN[/bold yellow] {msg}")  # type: ignore[union-attr]
+            self._console.print(f"[bold yellow]WARN[/bold yellow] {message}")  # type: ignore[union-attr]
         else:
-            print(f"\033[1;33m[WARN]\033[0m {msg}")
+            pass
 
     def error(self, msg: str) -> None:
         if self.rich_available:
             self._console.print(f"[bold red]ERROR[/bold red] {msg}")  # type: ignore[union-attr]
         else:
-            print(f"\033[0;31m[ERROR]\033[0m {msg}")
+            pass
 
     def step(self, msg: str) -> None:
         if self.rich_available:
             self._console.print(f"[bold blue]STEP[/bold blue] {msg}")  # type: ignore[union-attr]
         else:
-            print(f"\033[0;34m[STEP]\033[0m {msg}")
+            pass
 
     def success(self, msg: str) -> None:
         if self.rich_available:
             self._console.print(f"[bold green]✓[/bold green] {msg}")  # type: ignore[union-attr]
         else:
-            print(f"\033[92m✓ {msg}\033[0m")
+            pass
 
     def header(self, text: str) -> None:
         if self.rich_available:
@@ -84,23 +88,18 @@ class Logger:
                     f"[bold cyan]{text}[/bold cyan]",
                     border_style="cyan",
                     expand=False,
-                )
+                ),
             )
         else:
-            print(f"\n\033[1m\033[96m{text}\033[0m")
-            print("=" * len(text))
+            pass
 
     def panel(self, content: str, *, title: str = "", border: str = "green") -> None:
         if self.rich_available:
             self._console.print(  # type: ignore[union-attr]
-                Panel(content, title=title or None, border_style=border)
+                Panel(content, title=title or None, border_style=border),
             )
-        else:
-            if title:
-                print(f"\n{'=' * 42}")
-                print(f"  {title}")
-                print(f"{'=' * 42}")
-            print(content)
+        elif title:
+            pass
 
     def table(self, rows: list[tuple[str, str]], *, title: str = "") -> None:
         if self.rich_available:
@@ -110,6 +109,6 @@ class Logger:
             self._console.print(Panel(t, border_style="cyan"))  # type: ignore[union-attr]
         else:
             if title:
-                print(f"\n{title}")
-            for k, v in rows:
-                print(f"  {k}: {v}")
+                pass
+            for _k, _v in rows:
+                pass

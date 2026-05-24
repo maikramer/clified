@@ -2,40 +2,28 @@
 
 Instalador universal e **biblioteca CLI** para ferramentas Python, Rust e Bun.
 
-Inclui infraestrutura reutilizável inspirada no [denv](https://github.com/) (LocatelliDockerManager): output JSON, retry, circuit breaker, diagnóstico de erros e integração MCP.
+Infraestrutura reutilizável consolidada a partir de **denv** (LocatelliDockerManager), **pc** (ProjetoCursor) e **GameDev** — sem hardcodar ferramentas no código.
 
 ## Estrutura
 
 ```
 clified/
 ├── install.sh / install.ps1 / install.bat
-├── tools.yaml                               # registry das suas ferramentas
+├── tools.yaml                               # registry local (gitignored)
+├── tools.yaml.example
+├── examples/                                # migração GameDev / denv / pc
 ├── config/
-│   ├── clified.yml.example                # config global opcional
-│   └── install-all-constraints.txt
-├── pyproject.toml
+│   ├── clified.yml.example
+│   ├── install-all-constraints.txt
+│   └── gamedev-constraints.txt.example
 └── src/clified/
-    ├── logging.py                         # Logger Rich/ANSI (instalador)
-    ├── hooks.py                           # post_install (ex.: MCP)
-    ├── cli/                               # ← do denv: output JSON, decorators
-    │   ├── output.py
-    │   └── decorators.py
-    ├── core/                              # ← do denv: config, retry, state
-    │   ├── config.py
-    │   ├── retry.py
-    │   ├── circuit_breaker.py
-    │   ├── state_store.py
-    │   └── exceptions.py
-    ├── patterns/                          # ← do denv: diagnóstico por regex
-    │   ├── base.json
-    │   ├── loader.py
-    │   └── services/build.json
-    ├── integrations/
-    │   └── mcp.py                         # registo Cursor MCP
+    ├── logging.py
+    ├── cli/                                 # output JSON, Click scaffold, StepRunner
+    ├── core/                                # config, retry, paths, state
+    ├── patterns/                            # diagnóstico regex + reporter
+    ├── hooks/                               # MCP, skills, pip check, nvdiffrast
+    ├── integrations/mcp.py
     └── installer/
-        ├── registry.py
-        ├── unified.py
-        └── ...
 ```
 
 ## Instalação
@@ -43,12 +31,36 @@ clified/
 ```bash
 git clone https://github.com/maikramer/clified.git
 cd clified
-cp tools.yaml.example tools.yaml   # primeira vez
+cp tools.yaml.example tools.yaml
 ./install.sh --list
 ./install.sh minha-ferramenta
 ```
 
-`tools.yaml` é local (não vai para o git) — registe os projectos do seu workspace.
+Para CLIs Click: `pip install -e ".[cli]"` (grupo `--json` / `--quiet` / `--verbose`).
+
+## Migração de workspaces existentes
+
+| Origem | Exemplo YAML | O que fica no repo original |
+|--------|--------------|----------------------------|
+| **GameDev** | `examples/tools.gamedev.yaml.example` | `*_extras.py`, constraints ML, lógica PyTorch |
+| **denv** | `examples/tools.denv.yaml.example` | Docker/Swarm, FastMCP server |
+| **pc** | `examples/tools.pc.yaml.example` | comandos Flutter/deploy, skill do projecto |
+
+Campos novos em `tools.yaml`:
+
+| Campo | Uso |
+|-------|-----|
+| `custom_install` | Hook `modulo:func(installer)` substituindo `pip install -e` |
+| `install_before_mode: venv_only` | Equivalente ao `--text2d-venv-only` do GameDev |
+| `install_order` | Ordem em `clified-install all` |
+| `post_install` | MCP, skills Cursor, `pip check`, etc. |
+
+Hooks prontos (`clified.hooks`):
+
+- `register_mcp` / `register_mcp_serve` — Cursor MCP
+- `register_cursor_skill` — skill do pc/GameDev
+- `pip_check` — validação pós-install
+- `install_nvdiffrast` — extra PyTorch (GameDev)
 
 ## Desenvolvimento
 
@@ -57,27 +69,20 @@ pip install -e ".[dev]"
 pytest -q
 ```
 
-
 ## Biblioteca para os seus CLIs
 
 ```python
 from clified.cli import OutputFormatter, handle_cli_errors
-from clified.core import RetryEngine, ConfigManager, get_state_store
-from clified.patterns import get_pattern_loader
+from clified.cli.app import create_cli_group  # pip install clified[cli]
+from clified.cli.progress import StepRunner, Step
+from clified.core import find_project_root, RetryEngine, get_state_store
+from clified.patterns import diagnose_text
 
-# Saída JSON para automação
 out = OutputFormatter(json_mode=True)
-out.success({"tool": "mytool"}, message="ok")
+out.success({"tool": "mytool"})
 
-# Retry com backoff
-RetryEngine().execute(risky_function)
-
-# Diagnóstico de logs de build
-diag = get_pattern_loader().get_diagnosis("ModuleNotFoundError: foo")
-
-# Estado persistente (~/.clified/state.json)
-store = get_state_store()
-store.set("installs", "mytool", {"version": "1.0"})
+report = diagnose_text(log_text)
+print(report.to_markdown())
 ```
 
 ## Hooks e MCP
@@ -86,9 +91,9 @@ store.set("installs", "mytool", {"version": "1.0"})
 tools:
   denv:
     kind: python
-    folder: ../GitClones/LocatelliDockerManager
+    folder: ../LocatelliDockerManager
     cli_name: denv
-    post_install: clified.hooks:register_mcp
+    post_install: clified.hooks:register_mcp_serve
 ```
 
 ## Variáveis de ambiente
@@ -99,22 +104,19 @@ tools:
 | `CLIFIED_TOOLS` | Caminho alternativo para tools.yaml |
 | `CLIFIED_RETRY=1` | Retry automático na instalação |
 | `CLIFIED_MCP_NAME` | Nome do servidor MCP (hook) |
+| `CLIFIED_PROJECT_ROOT` | Override para `find_project_root()` |
 | `INSTALL_PREFIX` | Prefixo (~/.local) |
 
-## Origem do código denv
+## Origem do código
 
-Módulos adaptados do **denv** (LocatelliDockerManager), generalizados:
+| Clified | Origem |
+|---------|--------|
+| `cli/output.py`, `cli/decorators.py` | denv |
+| `cli/app.py`, `cli/progress.py` | denv + pc (`DeployUI` / StepRunner) |
+| `core/paths.py` | pc |
+| `hooks/skills.py` | GameDev `skill_install.py` |
+| `hooks/mcp.py`, `hooks/pytorch.py` | denv + GameDev |
+| `patterns/reporter.py` | denv `DiagnosisReporter` |
+| `installer/registry.py` (campos extras) | GameDev unified installer |
 
-| Clified | Origem denv |
-|---------|-------------|
-| `cli/output.py` | `denv/core/output.py` |
-| `cli/decorators.py` | `denv/cli/decorators.py` |
-| `core/exceptions.py` | subset de `denv/core/exceptions.py` |
-| `core/retry.py` | `denv/core/retry_engine.py` |
-| `core/circuit_breaker.py` | `denv/core/circuit_breaker.py` |
-| `core/state_store.py` | `denv/core/state_store.py` (API genérica) |
-| `core/config.py` | `denv/core/config.py` (sem Docker/Swarm) |
-| `patterns/` | `denv/error_patterns/` |
-| `integrations/mcp.py` | `installer/installer.py` setup_mcp |
-
-A lógica Docker/Swarm permanece no repositório denv — não foi copiada.
+A lógica Docker/Swarm permanece no denv; pipelines ML específicos permanecem no GameDev — registados via YAML, não hardcoded.

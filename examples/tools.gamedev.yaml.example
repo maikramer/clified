@@ -1,0 +1,53 @@
+# Exemplo: migrar monorepo GameDev para Clified
+# Copie secções relevantes para o seu tools.yaml
+# Hooks específicos ficam no repo GameDev (gamedev_shared.installer.*_extras)
+
+workspace:
+  root: "/caminho/para/GameDev"
+  name: "GameDev"
+  shared_python:
+    path: Shared
+    import_name: gamedev_shared
+    src_subpath: src
+
+tools:
+  text2d:
+    kind: python
+    folder: Text2D
+    cli_name: text2d
+    python_module: text2d
+    description: "CLI text-to-image"
+    min_python: [3, 13]
+    needs_pytorch: true
+    install_order: -2
+    post_install: clified.hooks:pip_check
+
+  text3d:
+    kind: python
+    folder: Text3D
+    cli_name: text3d
+    python_module: text3d
+    description: "Pipeline text-to-3D"
+    min_python: [3, 13]
+    needs_pytorch: true
+    install_order: -1
+    install_before: [text2d]
+    install_before_mode: venv_only   # equivalente ao --text2d-venv-only
+    cross_deps: [text2d]
+    post_install: gamedev_shared.installer.text3d_extras:run_for_installer
+
+  materialize:
+    kind: rust
+    folder: Materialize
+    cli_name: materialize
+    cargo_bin_name: materialize-cli
+    description: "PBR maps via GPU"
+
+  denv:
+    kind: python
+    folder: ../LocatelliDockerManager
+    cli_name: denv
+    python_module: denv
+    description: "Docker Environment Manager"
+    min_python: [3, 12]
+    post_install: clified.hooks:register_mcp_serve
