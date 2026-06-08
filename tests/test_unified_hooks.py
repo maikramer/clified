@@ -33,6 +33,7 @@ def test_run_hook_missing_module() -> None:
 
 def test_run_hook_returns_false(monkeypatch: pytest.MonkeyPatch) -> None:
     """Hook que devolve ``False`` propaga falha."""
+
     def fail_hook(_installer: object) -> bool:
         return False
 
