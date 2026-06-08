@@ -2,18 +2,70 @@
 
 from __future__ import annotations
 
+import contextlib
+import re
 import shutil
 import subprocess
 from typing import TYPE_CHECKING
 
 from .base import BaseInstaller, has_uv, install_all_constraint_argv, uv_cmd
+from .requires_python import bounds_from_pyproject
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
     from .registry import LocalPackage, SharedPythonConfig
 
 _PIP_BOOTSTRAP = ("pip", "setuptools>=68,<82", "wheel")
+
+# A relative ``file:`` dependency URL (e.g. ``gamedev-shared @ file:../Shared``)
+# is invalid PEP 508 — pip tolerates it but uv rejects it while building the
+# editable wheel. Match the relative path so it can be made absolute.
+_REL_FILE_DEP = re.compile(r"""(@\s*file:)(?!/)([^\s"',\]]+)""")
+
+
+def _rewrite_relative_file_deps(text: str, base_dir: Path) -> tuple[str, bool]:
+    """Rewrite relative ``file:`` dependency URLs to absolute ones.
+
+    Returns the (possibly) rewritten text and whether anything changed.
+    Paths are resolved against *base_dir* (the project root).
+    """
+    changed = False
+
+    def _sub(match: re.Match[str]) -> str:
+        nonlocal changed
+        rel = match.group(2)
+        abs_path = (base_dir / rel).resolve()
+        changed = True
+        return f"{match.group(1)}//{abs_path}"
+
+    return _REL_FILE_DEP.sub(_sub, text), changed
+
+
+@contextlib.contextmanager
+def _patched_relative_deps(project_root: Path, logger) -> Iterator[None]:  # noqa: ANN001
+    """Temporarily absolutise relative ``file:`` deps for the uv build.
+
+    pyproject is restored afterwards (even on failure), so the working tree is
+    never left modified. A no-op when there are no relative ``file:`` deps.
+    """
+    pyproject = project_root / "pyproject.toml"
+    try:
+        original = pyproject.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        yield
+        return
+    patched, changed = _rewrite_relative_file_deps(original, project_root)
+    if not changed:
+        yield
+        return
+    logger.info("Absolutizando deps file: relativas para o build (uv)")
+    try:
+        pyproject.write_text(patched, encoding="utf-8")
+        yield
+    finally:
+        pyproject.write_text(original, encoding="utf-8")
 
 
 def _find_site_packages(venv_dir: Path) -> Path | None:
@@ -78,6 +130,7 @@ class PythonProjectInstaller(BaseInstaller):
         self.python_module = python_module or cli_name.replace("-", "_")
         self.min_python = min_python
         self.max_python = max_python
+        self._refine_python_bounds()
         self._use_uv = has_uv()
         self.cross_dep_folders: list[tuple[Path, str]] = cross_dep_folders or []
         self.shared_python = shared_python
@@ -90,6 +143,36 @@ class PythonProjectInstaller(BaseInstaller):
         else:
             self.venv_python = self.venv_dir / "bin" / "python"
         self.venv_exists = self.venv_python.is_file()
+
+    def _refine_python_bounds(self) -> None:
+        """Tighten min/max Python using the project's ``requires-python``.
+
+        ``tools.yaml`` carries a coarse floor; the tool's ``pyproject.toml`` is
+        authoritative. We keep the tighter of the two floors and the lower of
+        the two ceilings so a tool capped at e.g. ``<3.14`` never lands on a
+        newer interpreter than it declares support for.
+        """
+        floor, ceiling = bounds_from_pyproject(self.project_root)
+        if floor is not None and floor > self.min_python:
+            self.min_python = floor
+        if ceiling is not None:
+            self.max_python = (
+                ceiling if self.max_python is None else min(self.max_python, ceiling)
+            )
+        # A ceiling below the floor means the registry/pyproject disagree;
+        # trust the project's ceiling and pin the floor to it.
+        if self.max_python is not None and self.max_python < self.min_python:
+            self.min_python = self.max_python
+
+    def _target_py_version(self) -> str:
+        """``major.minor`` to request from uv when creating the venv.
+
+        Picks the newest interpreter allowed by the bounds (the ceiling when
+        one exists, otherwise the floor) so tools get the most recent
+        compatible Python with the best wheel availability.
+        """
+        target = self.max_python if self.max_python is not None else self.min_python
+        return f"{target[0]}.{target[1]}"
 
     def run(self) -> bool:
         self.logger.table(
@@ -194,7 +277,7 @@ class PythonProjectInstaller(BaseInstaller):
             shutil.rmtree(self.venv_dir, ignore_errors=True)
             self.venv_exists = False
 
-        py_version = f"{self.min_python[0]}.{self.min_python[1]}"
+        py_version = self._target_py_version()
 
         if self._use_uv:
             self.logger.step(f"Criando venv com uv (Python {py_version})...")
@@ -285,16 +368,27 @@ class PythonProjectInstaller(BaseInstaller):
             self.install_pytorch(pip_cmd, cwd=self.project_root)
 
         self.logger.info("Instalando pacote em modo editável...")
-        if self._use_uv:
-            subprocess.run(
-                [*pip_cmd, *constr, "-e", str(self.project_root)], check=True, cwd=_root
-            )
-        else:
-            subprocess.run(
-                [python, "-m", "pip", "install", *constr, "-e", str(self.project_root)],
-                check=True,
-                cwd=_root,
-            )
+        with _patched_relative_deps(self.project_root, self.logger):
+            if self._use_uv:
+                subprocess.run(
+                    [*pip_cmd, *constr, "-e", str(self.project_root)],
+                    check=True,
+                    cwd=_root,
+                )
+            else:
+                subprocess.run(
+                    [
+                        python,
+                        "-m",
+                        "pip",
+                        "install",
+                        *constr,
+                        "-e",
+                        str(self.project_root),
+                    ],
+                    check=True,
+                    cwd=_root,
+                )
 
         self._write_pth_files()
         self.logger.success("Instalado no venv")

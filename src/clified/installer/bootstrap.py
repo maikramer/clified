@@ -21,7 +21,7 @@ def _min_version() -> str:
 
         return __version__
     except ImportError:
-        return "0.4.1"
+        return "0.5.0"
 
 
 def is_available() -> bool:

@@ -297,8 +297,13 @@ def install_tool(
 
     logger = Logger()
 
-    if action == "install":
-        return _run_with_retry("install", inst.run, logger)
+    if action in ("install", "update"):
+        # ``update`` refreshes the editable install + deps while reusing the
+        # existing venv (no --clear); a healthy venv is kept, a stale one is
+        # still recreated by ensure_project_venv.
+        if action == "update":
+            os.environ["UV_VENV_CLEAR"] = "0"
+        return _run_with_retry(action, inst.run, logger)
     if action == "uninstall":
         return inst.run_uninstall()
     if action == "reinstall":
@@ -422,12 +427,22 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--action",
-        choices=["install", "uninstall", "reinstall"],
+        choices=["install", "update", "uninstall", "reinstall"],
         default="install",
-        help="Acção (default: install)",
+        help="Acção (default: install). update = refrescar reaproveitando o venv",
     )
     parser.add_argument(
         "--list", action="store_true", help="Listar ferramentas disponíveis"
+    )
+    parser.add_argument(
+        "--doctor",
+        action="store_true",
+        help="Diagnosticar saúde das ferramentas (venv, Python, wrappers, PATH)",
+    )
+    parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="Com --doctor: remover wrappers que ofuscam o CLI no PATH",
     )
     parser.add_argument(
         "--all", action="store_true", help="Instalar todas as ferramentas"
@@ -482,6 +497,9 @@ def main(argv: list[str] | None = None) -> int:
         _print_tool_list(available, workspace, logger, output=output)
         return 0
 
+    if args.doctor:
+        return _run_doctor_cli(args, workspace, available, logger, output)
+
     if args.all and args.tool is not None:
         parser.error("Não uses --all juntamente com o nome da ferramenta.")
 
@@ -516,6 +534,37 @@ def main(argv: list[str] | None = None) -> int:
             text2d_venv_only=args.text2d_venv_only,
         )
 
+    return 0 if ok else 1
+
+
+def _run_doctor_cli(
+    args: argparse.Namespace,
+    workspace: WorkspaceConfig,
+    available: list[ToolSpec],
+    logger: Logger,
+    output: OutputFormatter,
+) -> int:
+    from .doctor import run_doctor
+
+    prefix = Path(args.prefix) if args.prefix else None
+    base = prefix or Path(os.environ.get("INSTALL_PREFIX", Path.home() / ".local"))
+    bin_dir = base / "bin"
+    if args.tool and args.tool.lower() != "all":
+        spec = TOOLS.get(args.tool)
+        if spec is None:
+            logger.error(f"Ferramenta desconhecida: {args.tool}")
+            return 1
+        specs = [spec]
+    else:
+        specs = available
+    ok = run_doctor(
+        specs,
+        workspace,
+        bin_dir=bin_dir,
+        logger=logger,
+        output=output,
+        fix=args.fix,
+    )
     return 0 if ok else 1
 
 
