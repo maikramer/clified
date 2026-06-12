@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10", "3.12", "3.13"]
+        python-version: ["3.10", "3.12", "3.13", "3.14"]
 
     steps:
       - uses: actions/checkout@v4
@@ -34,6 +34,9 @@ jobs:
 
       - name: Run tests
         run: pytest -q --cov=clified --cov-report=term-missing
+
+      - name: Coverage threshold
+        run: pytest --cov=clified --cov-fail-under=50
 
       - name: Smoke CLI
         run: |
