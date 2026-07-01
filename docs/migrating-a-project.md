@@ -5,7 +5,7 @@ Guide for adopting Clified in a repository that today uses `setup.sh`, Makefiles
 ## Checklist
 
 - [ ] Create `tools.yaml` + `tools.yaml.example`
-- [ ] Add `install.sh`, `install.ps1`, `scripts/install-bootstrap.sh`
+- [ ] Add `install.sh`, `install.ps1`, `scripts/install-bootstrap.sh`, `scripts/install-bootstrap.ps1`
 - [ ] (Optional) `installer/installer.py` → `bootstrap.run` bridge
 - [ ] (Optional) `clified_install.py` for post-install logic
 - [ ] Update project README
@@ -54,6 +54,25 @@ clified_bootstrap my-cli "$@"
 ```
 
 Also copy `clified/scripts/install-bootstrap.sh` → `scripts/install-bootstrap.sh`.
+
+## 2b. `install.ps1` (Windows)
+
+```powershell
+# install.ps1
+$ErrorActionPreference = "Stop"
+
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$env:CLIFIED_TOOLS = if ($env:CLIFIED_TOOLS) { $env:CLIFIED_TOOLS } else { Join-Path $ScriptDir "tools.yaml" }
+
+. (Join-Path $ScriptDir "scripts\install-bootstrap.ps1")
+Invoke-ClifiedBootstrap -ToolName my-cli @args
+```
+
+Copy `clified/scripts/install-bootstrap.ps1` → `scripts/install-bootstrap.ps1`.
+
+The bootstrap avoids treating Python `ModuleNotFoundError` stderr as a fatal error when `$ErrorActionPreference = Stop`, and adds `%AppData%\Roaming\Python\PythonXY\Scripts` to PATH after `pip install --user` (common with Anaconda).
+
+When `tools.yaml` lives in a subfolder (e.g. `cli/tools.yaml`), set `workspace.root` to the repo root and `tools.<name>.folder` to the package directory (e.g. `cli`), not `.` relative to the repo root.
 
 ## 3. Python bridge (optional)
 

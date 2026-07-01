@@ -1,6 +1,6 @@
 [project]
 name = "clified"
-version = "0.6.0"
+version = "0.6.1"
 description = "Instalador universal e biblioteca CLI para ferramentas Python, Rust e Bun"
 readme = "README.md"
 license = "MIT"

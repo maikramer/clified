@@ -122,6 +122,26 @@ def test_fix_shadows_removes_earlier_path_entry(tmp_path: Path, monkeypatch) -> 
     assert (canonical / "demo").exists()  # canonical wrapper preserved
 
 
+def test_diagnose_windows_cmd_wrapper(tmp_path: Path, monkeypatch) -> None:
+    proj = tmp_path / "Demo"
+    proj.mkdir()
+    (proj / "pyproject.toml").write_text('[project]\nname="demo"\n', encoding="utf-8")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    wrapper = bin_dir / "demo.cmd"
+    wrapper.write_text("@echo off\r\n", encoding="utf-8")
+
+    monkeypatch.setattr("clified.installer.doctor.sys.platform", "win32")
+    monkeypatch.setattr(
+        "clified.installer.doctor.shutil.which",
+        lambda name: str(wrapper) if name == "demo" else None,
+    )
+    report = diagnose_tool(_spec("Demo"), _workspace(tmp_path), bin_dir)
+    assert report["wrapper_exists"] is True
+    assert report["wrapper"].endswith("demo.cmd")
+    assert report["status"] == FAIL  # still no venv
+
+
 def test_fix_shadows_noop_without_wrapper(tmp_path: Path) -> None:
     report = {
         "name": "demo",

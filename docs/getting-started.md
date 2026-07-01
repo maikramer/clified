@@ -46,7 +46,8 @@ my-project/
 ├── install.sh              # entry point (Linux/macOS)
 ├── install.ps1             # entry point (Windows)
 └── scripts/
-    └── install-bootstrap.sh   # Python detection + pip install clified
+    ├── install-bootstrap.sh    # Python detection + pip install clified
+    └── install-bootstrap.ps1   # same for Windows PowerShell
 ```
 
 ### Step by step
@@ -99,7 +100,13 @@ The `install.sh`:
 .\install.ps1 --action reinstall
 ```
 
-The PowerShell bootstrap follows the same logic: install `clified` via pip if needed, then `clified-install`.
+The PowerShell bootstrap (`scripts/install-bootstrap.ps1`) follows the same logic as the bash script:
+
+1. Detects Python 3.10+ with pip (without treating “module not found” stderr as a fatal error when `$ErrorActionPreference = Stop`)
+2. Adds `%AppData%\Python\PythonXY\Scripts` to PATH when pip installs `--user` wrappers there (common with Anaconda)
+3. Installs `clified` via pip if needed, then runs `clified-install`
+
+When `tools.yaml` lives in a subfolder (e.g. `cli/tools.yaml`), set `workspace.root` to the repo root and `tools.<name>.folder` to the package directory (e.g. `cli`), not `.` relative to the repo root.
 
 ## Next steps
 

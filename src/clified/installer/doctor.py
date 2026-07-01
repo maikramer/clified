@@ -88,9 +88,29 @@ def _module_imports(python: Path, module: str) -> bool:
     return True
 
 
+def _wrapper_candidates(bin_dir: Path, cli_name: str) -> list[Path]:
+    """Paths where clified may install a CLI wrapper (platform-specific)."""
+    if sys.platform == "win32":
+        return [
+            bin_dir / f"{cli_name}.cmd",
+            bin_dir / f"{cli_name}.exe",
+            bin_dir / cli_name,
+        ]
+    return [bin_dir / cli_name]
+
+
 def _wrapper_path(bin_dir: Path, cli_name: str) -> Path:
-    name = f"{cli_name}.exe" if sys.platform == "win32" else cli_name
-    return bin_dir / name
+    """Canonical wrapper path — prefers the file that exists, else the default created by clified."""
+    for candidate in _wrapper_candidates(bin_dir, cli_name):
+        if candidate.is_file():
+            return candidate
+    if sys.platform == "win32":
+        return bin_dir / f"{cli_name}.cmd"
+    return bin_dir / cli_name
+
+
+def _wrapper_exists(bin_dir: Path, cli_name: str) -> bool:
+    return any(p.is_file() for p in _wrapper_candidates(bin_dir, cli_name))
 
 
 def diagnose_tool(
@@ -146,7 +166,7 @@ def diagnose_tool(
     # CLI wrapper + PATH shadowing (all kinds).
     wrapper = _wrapper_path(bin_dir, spec.cli_name)
     report["wrapper"] = str(wrapper)
-    report["wrapper_exists"] = wrapper.is_file()
+    report["wrapper_exists"] = _wrapper_exists(bin_dir, spec.cli_name)
     resolved = shutil.which(spec.cli_name)
     report["path_resolves_to"] = resolved
     if not wrapper.is_file():
@@ -184,18 +204,23 @@ def fix_shadows(report: dict[str, Any], logger: Logger) -> list[str]:
     name = report["name"]
     removed: list[str] = []
     for d in _path_dirs():
-        candidate = d / (f"{name}.exe" if sys.platform == "win32" else name)
-        if not candidate.is_file():
-            continue
-        if _norm(str(candidate)) == _norm(wrapper):
-            continue
-        try:
-            candidate.unlink()
-        except OSError as exc:
-            logger.warning(f"Não consegui remover {candidate}: {exc}")
-            continue
-        removed.append(str(candidate))
-        logger.success(f"Removido wrapper ofuscador: {candidate}")
+        candidates = (
+            [d / f"{name}.cmd", d / f"{name}.exe", d / name]
+            if sys.platform == "win32"
+            else [d / name]
+        )
+        for candidate in candidates:
+            if not candidate.is_file():
+                continue
+            if _norm(str(candidate)) == _norm(wrapper):
+                continue
+            try:
+                candidate.unlink()
+            except OSError as exc:
+                logger.warning(f"Não consegui remover {candidate}: {exc}")
+                continue
+            removed.append(str(candidate))
+            logger.success(f"Removido wrapper ofuscador: {candidate}")
     return removed
 
 

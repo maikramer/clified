@@ -85,7 +85,8 @@ hatch publish
 |--------|---------|
 | `install.sh` | Dev: create `.installer-venv` + editable install |
 | `scripts/run-clified.sh` | PyPI or local |
-| `scripts/install-bootstrap.sh` | Copy into migrated projects |
+| `scripts/install-bootstrap.sh` | Copy into migrated projects (Linux/macOS) |
+| `scripts/install-bootstrap.ps1` | Copy into migrated projects (Windows) |
 
 ## Adding a built-in hook
 
