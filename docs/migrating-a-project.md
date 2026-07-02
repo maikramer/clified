@@ -137,7 +137,7 @@ my-cli --help
 | GameDev | mixed | `gamedev_shared.installer.clified_hooks` | monorepo, `shared_python` |
 | ai2print | rust | venv + env wrapper | GTK/Python hybrid |
 
-YAML examples live in Clified `examples/`.
+YAML examples live in Clified `bundled/examples/`.
 
 ## Monorepo with multiple tools
 

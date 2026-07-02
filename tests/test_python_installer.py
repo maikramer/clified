@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 from clified.installer.python_installer import (
     PythonProjectInstaller,
@@ -155,6 +158,9 @@ class TestPythonProjectInstallerInit:
         assert inst.skip_pytorch is True
         assert inst.force is True
 
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="layout de venv Unix (.venv/bin/python)"
+    )
     def test_venv_exists_when_python_present(self, tmp_path: Path) -> None:
         venv_python = tmp_path / ".venv" / "bin" / "python"
         venv_python.parent.mkdir(parents=True)
@@ -313,6 +319,7 @@ class TestPythonProjectInstallerRefinePythonBounds:
 
 
 class TestPythonProjectInstallerCreateCliWrappers:
+    @pytest.mark.skipif(sys.platform == "win32", reason="gera wrapper bash em Unix")
     def test_creates_main_wrapper(self, tmp_path: Path) -> None:
         with patch("clified.installer.python_installer.has_uv", return_value=False):
             inst = PythonProjectInstaller(
@@ -326,6 +333,7 @@ class TestPythonProjectInstallerCreateCliWrappers:
         content = wrapper.read_text(encoding="utf-8")
         assert "-m demo" in content
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="gera alias bash em Unix")
     def test_creates_extra_aliases(self, tmp_path: Path) -> None:
         with patch("clified.installer.python_installer.has_uv", return_value=False):
             inst = PythonProjectInstaller(

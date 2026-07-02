@@ -86,6 +86,37 @@ class TestRunWithRetry:
             result = _run_with_retry("install", lambda: True, MagicMock())
         assert result is True
 
+    def test_explicit_max_attempts_1_skips_engine(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CLIFIED_RETRY", "1")
+        calls = 0
+
+        def func() -> bool:
+            nonlocal calls
+            calls += 1
+            return True
+
+        with patch("clified.installer.unified.RetryEngine") as mock_engine:
+            result = _run_with_retry("install", func, MagicMock(), max_attempts=1)
+        assert result is True
+        assert calls == 1
+        mock_engine.assert_not_called()
+
+    def test_explicit_max_attempts_uses_engine(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("CLIFIED_RETRY", raising=False)
+        mock_engine = MagicMock()
+        mock_result = MagicMock(success=True)
+        mock_engine.execute.return_value = mock_result
+        with patch("clified.installer.unified.RetryEngine", return_value=mock_engine):
+            result = _run_with_retry(
+                "install", lambda: True, MagicMock(), max_attempts=3
+            )
+        assert result is True
+        mock_engine.execute.assert_called_once()
+
 
 class TestRunHook:
     def test_empty_hook_returns_true(self) -> None:

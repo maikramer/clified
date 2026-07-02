@@ -1,8 +1,16 @@
-"""Resolução de paths — checkout local, PyPI wheel ou config do utilizador."""
+"""Paths do próprio Clified — bundled, home, root, ``tools.yaml`` e versão.
+
+Este módulo resolve onde o Clified instalado vive e onde guarda a sua config:
+``package_dir``/``bundled_dir`` (recursos embutidos no wheel), ``clified_home``
+(``~/.config/clified``), ``clified_root`` (checkout dev ou ``CLIFIED_ROOT``) e
+``tools_yaml_path`` (registo de ferramentas).  *Não* trata do projecto-alvo
+que está a ser instalado — para isso ver ``clified.core.paths``.
+"""
 
 from __future__ import annotations
 
 import os
+import re
 import shutil
 from importlib import metadata
 from pathlib import Path
@@ -97,7 +105,24 @@ def default_clified_yml() -> Path:
 
 
 def version() -> str:
+    """Versão do pacote — single-source no literal ``__version__`` de ``__init__``.
+
+    O literal em ``clified/__init__.py`` é a fonte da verdade (lida pelo hatchling
+    em build, e sempre presente no pacote em execução).  ``importlib.metadata`` é
+    usado apenas como fallback (ex.: builds ofuscados sem o literal acessível).
+    """
+    literal = _init_version_literal()
+    if literal != "0.0.0":
+        return literal
     try:
         return metadata.version("clified")
     except metadata.PackageNotFoundError:
         return "0.0.0"
+
+
+def _init_version_literal() -> str:
+    init_file = package_dir() / "__init__.py"
+    match = re.search(
+        r'__version__\s*=\s*["\']([^"\']+)["\']', init_file.read_text(encoding="utf-8")
+    )
+    return match.group(1) if match else "0.0.0"

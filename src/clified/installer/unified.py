@@ -41,15 +41,28 @@ def _diagnose_failure(message: str, logger: Logger) -> None:
         pass
 
 
-def _run_with_retry(action: str, func: Callable[[], bool], logger: Logger) -> bool:
-    if os.environ.get("CLIFIED_RETRY", "").strip().lower() not in ("1", "true", "yes"):
+def _run_with_retry(
+    action: str,
+    func: Callable[[], bool],
+    logger: Logger,
+    *,
+    max_attempts: int | None = None,
+) -> bool:
+    if max_attempts is None:
+        env = os.environ.get("CLIFIED_RETRY", "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        max_attempts = 3 if env else 1
+    if max_attempts <= 1:
         ok = func()
         if not ok:
             _diagnose_failure(f"install action {action} failed", logger)
         return ok
 
     engine = RetryEngine(
-        policy=RetryPolicy(max_attempts=3, base_delay=2.0), logger=logger
+        policy=RetryPolicy(max_attempts=max_attempts, base_delay=2.0), logger=logger
     )
     result = engine.execute(func)
     if not result.success and result.final_exception:
@@ -126,7 +139,7 @@ class _ToolPythonInstaller(PythonProjectInstaller):
         skip_deps: bool = False,
         skip_models: bool = False,
         force: bool = False,
-        text2d_venv_only: bool = False,
+        retry_attempts: int | None = None,
     ) -> None:
         cross_deps = _resolve_cross_deps(spec, workspace)
         super().__init__(
@@ -149,7 +162,7 @@ class _ToolPythonInstaller(PythonProjectInstaller):
             local_packages=spec.local_packages,
         )
         self.spec = spec
-        self.text2d_venv_only = text2d_venv_only
+        self.retry_attempts = retry_attempts
 
     def install_in_venv(self) -> None:
         if self.spec.custom_install:
@@ -169,17 +182,12 @@ class _ToolPythonInstaller(PythonProjectInstaller):
         return super().check_python(min_version=self.spec.min_python)
 
     def run(self) -> bool:
-        skip_before = (
-            self.text2d_venv_only or self.spec.install_before_mode == "venv_only"
-        )
+        skip_before = self.spec.install_before_mode == "venv_only"
         for dep_key in self.spec.install_before:
             if skip_before:
-                mode = (
-                    "--text2d-venv-only"
-                    if self.text2d_venv_only
-                    else "install_before_mode=venv_only"
+                self.logger.info(
+                    f"install_before_mode=venv_only: {dep_key!r} via cross_deps/.pth apenas"
                 )
-                self.logger.info(f"{mode}: {dep_key!r} via cross_deps/.pth apenas")
                 continue
             self.logger.step(f"Instalando dependência: {dep_key}")
             if not install_tool(
@@ -191,6 +199,7 @@ class _ToolPythonInstaller(PythonProjectInstaller):
                 skip_deps=self.skip_deps,
                 skip_models=self.skip_models,
                 force=self.force,
+                retry_attempts=self.retry_attempts,
             ):
                 self.logger.error(f"Falha ao instalar dependência {dep_key!r}")
                 return False
@@ -251,7 +260,7 @@ def install_tool(
     skip_deps: bool = False,
     skip_models: bool = False,
     force: bool = False,
-    text2d_venv_only: bool = False,
+    retry_attempts: int | None = None,
 ) -> bool:
     if workspace is None:
         load_registry()
@@ -274,7 +283,7 @@ def install_tool(
             skip_deps=skip_deps,
             skip_models=skip_models,
             force=force,
-            text2d_venv_only=text2d_venv_only,
+            retry_attempts=retry_attempts,
         )
     elif spec.kind == ToolKind.RUST:
         inst = _ToolRustInstaller(spec, workspace, install_prefix=install_prefix)
@@ -303,11 +312,13 @@ def install_tool(
         # still recreated by ensure_project_venv.
         if action == "update":
             os.environ["UV_VENV_CLEAR"] = "0"
-        return _run_with_retry(action, inst.run, logger)
+        return _run_with_retry(action, inst.run, logger, max_attempts=retry_attempts)
     if action == "uninstall":
         return inst.run_uninstall()
     if action == "reinstall":
-        return _run_with_retry("reinstall", inst.run_reinstall, logger)
+        return _run_with_retry(
+            "reinstall", inst.run_reinstall, logger, max_attempts=retry_attempts
+        )
 
     Logger().error(f"Acção desconhecida: {action}")
     return False
@@ -337,6 +348,7 @@ def install_all(
     skip_deps: bool = False,
     skip_models: bool = False,
     force: bool = False,
+    retry_attempts: int | None = None,
 ) -> bool:
     if workspace is None:
         load_registry()
@@ -369,6 +381,7 @@ def install_all(
                     skip_deps=skip_deps,
                     skip_models=skip_models,
                     force=force,
+                    retry_attempts=retry_attempts,
                 )
             except Exception as exc:
                 logger.error(f"{spec.name}: {exc}")
@@ -394,36 +407,23 @@ def install_all(
             os.environ["UV_CONCURRENT_BUILDS"] = prev_uv
 
 
-def main(argv: list[str] | None = None) -> int:
-    os.environ.setdefault("UV_VENV_CLEAR", "1")
-    os.environ.setdefault("UV_LINK_MODE", "copy")
-
-    try:
-        load_registry()
-    except FileNotFoundError as e:
-        Logger().error(str(e))
-        return 1
-
-    workspace = get_workspace()
-    available = list_available_tools(workspace.root)
-    tool_names = sorted(TOOLS.keys())
-
+def _build_parser() -> argparse.ArgumentParser:
+    """Constrói o parser do CLI (epilog estático; ferramentas via ``--list``)."""
     parser = argparse.ArgumentParser(
         prog="clified-install",
         description=(
             "Instalador universal Clified. "
-            "Registe ferramentas em tools.yaml (Python, Rust ou Bun)."
+            "Registe ferramentas em tools.yaml (Python, Rust ou Bun) "
+            "ou busque uma remota com --get."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=_build_epilog(available, workspace),
+        epilog=_build_static_epilog(),
     )
-
     parser.add_argument(
         "tool",
         nargs="?",
         default=None,
-        help="Ferramenta a instalar (ou 'all'). Opções: "
-        + ", ".join([*tool_names, "all"]),
+        help="Ferramenta a instalar (ou 'all'). Use --list para ver as disponíveis.",
     )
     parser.add_argument(
         "--action",
@@ -481,17 +481,80 @@ def main(argv: list[str] | None = None) -> int:
         help="Comando Python",
     )
     parser.add_argument(
-        "--text2d-venv-only",
-        action="store_true",
-        help="Text3D: só cross_deps/.pth do Text2D, sem instalação dedicada",
+        "--retry",
+        metavar="N",
+        type=int,
+        default=None,
+        help="Tentativas em falhas transitórias (1 = sem retry; default segue CLIFIED_RETRY=1 → 3)",
     )
+    parser.add_argument(
+        "--get",
+        metavar="TOOL",
+        default=None,
+        help="Buscar e instalar uma ferramenta remota do catálogo (registry.yaml)",
+    )
+    parser.add_argument(
+        "--repo",
+        metavar="URL",
+        default=None,
+        help="URL git override para --get (repositório arbitrário)",
+    )
+    parser.add_argument(
+        "--catalog",
+        action="store_true",
+        help="Listar ferramentas remotas conhecidas (--get)",
+    )
+    parser.add_argument(
+        "--sources-dir",
+        default=None,
+        help="Onde clonar repositórios remotos (default: ~/.clified/sources)",
+    )
+    return parser
 
+
+def _apply_runtime_defaults(args: argparse.Namespace) -> None:
+    """UTF-8 em Windows + modo não-interativo quando stdin não é TTY (pipe).
+
+    Num pipe ``curl | bash`` / ``irm | iex`` o stdin não é terminal: filhos como
+    o pip poderiam tentar ler do pipe e hang. Detecta isso e impõe não-interativo
+    (``--yes`` implícito + ``PIP_NO_INPUT``) e UTF-8 para filhos Python (Windows).
+    """
+    if platform.system() == "Windows":
+        os.environ.setdefault("PYTHONUTF8", "1")
+    if sys.stdin is None or not sys.stdin.isatty():
+        args.yes = True
+        os.environ.setdefault("PIP_NO_INPUT", "1")
+        os.environ.setdefault("PIP_DISABLE_PIP_VERSION_CHECK", "1")
+        os.environ.setdefault("UV_NO_PROGRESS", "1")
+
+
+def main(argv: list[str] | None = None) -> int:
+    os.environ.setdefault("UV_VENV_CLEAR", "1")
+    os.environ.setdefault("UV_LINK_MODE", "copy")
+
+    parser = _build_parser()
     args = parser.parse_args(argv)
+    _apply_runtime_defaults(args)
 
     from clified.cli.output import OutputFormatter
 
     output = OutputFormatter(json_mode=args.json, quiet=args.quiet)
     logger = Logger()
+
+    if args.catalog:
+        return _print_catalog(logger, output)
+
+    if args.get:
+        return _run_get(args, logger)
+
+    try:
+        load_registry()
+    except FileNotFoundError as e:
+        logger.error(str(e))
+        return 1
+
+    workspace = get_workspace()
+    available = list_available_tools(workspace.root)
 
     if args.list:
         _print_tool_list(available, workspace, logger, output=output)
@@ -519,6 +582,7 @@ def main(argv: list[str] | None = None) -> int:
             skip_deps=args.skip_deps,
             skip_models=args.skip_models,
             force=args.force,
+            retry_attempts=args.retry,
         )
     else:
         ok = install_tool(
@@ -531,7 +595,7 @@ def main(argv: list[str] | None = None) -> int:
             skip_deps=args.skip_deps,
             skip_models=args.skip_models,
             force=args.force,
-            text2d_venv_only=args.text2d_venv_only,
+            retry_attempts=args.retry,
         )
 
     return 0 if ok else 1
@@ -568,28 +632,110 @@ def _run_doctor_cli(
     return 0 if ok else 1
 
 
-def _build_epilog(available: list[ToolSpec], workspace: WorkspaceConfig) -> str:
-    lines = [
-        f"Workspace: {workspace.name} ({workspace.root})",
-        "",
-        "Ferramentas disponíveis:",
-        "",
-    ]
-    for spec in available:
-        kind = spec.kind.value.capitalize()
-        lines.append(f"  {spec.cli_name:<16s}  [{kind}]  {spec.description}")
-    lines.extend(
+def _build_static_epilog() -> str:
+    return "\n".join(
         [
-            "",
             "Exemplos:",
-            "  clified-install mytool              # Instalar ferramenta Python",
-            "  clified-install myrust              # Instalar CLI Rust",
-            "  clified-install all                 # Todas as ferramentas registadas",
-            "  clified-install --list              # Listar ferramentas",
-            "  clified-install mytool --action uninstall",
+            "  clified-install --list                  # ferramentas do tools.yaml activo",
+            "  clified-install mytool                  # instalar ferramenta local",
+            "  clified-install all                     # todas (respeita install_order)",
+            "  clified-install mytool --action update  # refrescar reaproveitando o venv",
+            "  clified-install --doctor --fix          # diagnóstico + limpar wrappers sombreados",
+            "  clified-install --catalog               # listar ferramentas remotas conhecidas",
+            "  clified-install --get denv              # buscar e instalar ferramenta remota do catálogo",
+            "  clified-install --get mytool --repo https://github.com/x/y.git",
+            "",
+            "One-liner (sem clonar o clified):",
+            "  curl -fsSL https://raw.githubusercontent.com/maikramer/clified/main/install.sh | bash",
+            "  curl -fsSL .../install.sh | bash -s -- --get denv",
+            "  irm https://raw.githubusercontent.com/maikramer/clified/main/install.ps1 | iex",
         ]
     )
-    return "\n".join(lines)
+
+
+def _print_catalog(logger: Logger, output: OutputFormatter) -> int:
+    from . import catalog
+
+    known = catalog.list_known()
+    if output.is_json:
+        output.data(
+            {
+                "tools": [
+                    {
+                        "name": s.name,
+                        "repo": s.repo,
+                        "tool": s.tool,
+                        "tools_yaml": s.tools_yaml,
+                        "description": s.description,
+                    }
+                    for s in known
+                ],
+                "count": len(known),
+            },
+            title="catalog",
+        )
+        return 0
+    if not known:
+        logger.warn("Catálogo vazio (sem registry.yaml).")
+        return 0
+    rows = [(s.name, f"{s.repo}  ->  clified-install {s.tool}") for s in known]
+    logger.table(rows, title="Ferramentas remotas conhecidas (--get)")
+    return 0
+
+
+def _run_get(args: argparse.Namespace, logger: Logger) -> int:
+    from . import catalog
+
+    tool = args.get
+    if args.repo:
+        spec = catalog.RepoSpec(
+            name=tool, repo=args.repo, tool=tool, tools_yaml="tools.yaml"
+        )
+        logger.info(f"Repo override: {spec.repo}")
+    else:
+        try:
+            spec = catalog.resolve(tool)
+        except KeyError as e:
+            logger.error(str(e))
+            logger.info("Use --catalog para listar conhecidas ou --repo <url>.")
+            return 1
+
+    if args.sources_dir:
+        os.environ["CLIFIED_SOURCES"] = str(Path(args.sources_dir).expanduser())
+
+    try:
+        dest = catalog.clone_or_update(spec, logger=logger)
+        tools_yaml = catalog.resolve_tools_yaml(spec, dest)
+    except (RuntimeError, FileNotFoundError) as e:
+        logger.error(str(e))
+        return 1
+
+    logger.success(f"Repo pronto: {dest}")
+    os.environ["CLIFIED_TOOLS"] = str(tools_yaml)
+    os.environ["CLIFIED_ROOT"] = str(dest)
+
+    from . import registry as reg
+
+    reg.reset_registry()
+    try:
+        load_registry()
+    except FileNotFoundError as e:
+        logger.error(str(e))
+        return 1
+
+    prefix = Path(args.prefix) if args.prefix else None
+    ok = install_tool(
+        spec.tool,
+        action=args.action,
+        install_prefix=prefix,
+        python_cmd=args.python,
+        use_venv=args.use_venv,
+        skip_deps=args.skip_deps,
+        skip_models=args.skip_models,
+        force=args.force,
+        retry_attempts=args.retry,
+    )
+    return 0 if ok else 1
 
 
 def _print_tool_list(

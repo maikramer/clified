@@ -1,6 +1,6 @@
 [project]
 name = "clified"
-version = "0.6.1"
+dynamic = ["version"]
 description = "Instalador universal e biblioteca CLI para ferramentas Python, Rust e Bun"
 readme = "README.md"
 license = "MIT"
@@ -48,15 +48,16 @@ Issues = "https://github.com/maikramer/clified/issues"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.version]
+path = "src/clified/__init__.py"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/clified"]
 
 [tool.hatch.build.targets.sdist]
 include = [
     "/src/clified",
-    "/config",
     "/docs",
-    "/examples",
     "/scripts",
     "/install.sh",
     "/install.ps1",
@@ -142,13 +143,12 @@ ignore = [
     "S110",
     "BLE001",
     "TRY400",
+    "PLR0911",
 ]
 "src/clified/patterns/reporter.py" = ["TC001"]
 "src/clified/installer/__init__.py" = ["PLC0415"]
 "src/clified/cli/app.py" = ["FBT001", "ANN401"]
 "src/clified/cli/decorators.py" = ["ANN202", "ANN002", "ANN003", "TRY400", "BLE001"]
-"src/clified/core/__init__.py" = ["A004"]
-"src/clified/core/exceptions.py" = ["A001", "A004"]
 
 [tool.ruff.format]
 quote-style = "double"

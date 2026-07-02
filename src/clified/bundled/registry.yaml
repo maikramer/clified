@@ -1,0 +1,28 @@
+# Catálogo de ferramentas remotas conhecidas pelo Clified.
+# Usado por `clified-install --get <tool>` e pelo one-liner
+# `curl -fsSL .../install.sh | bash -s -- --get <tool>`.
+#
+# Campos por ferramenta:
+#   repo:        URL git do repositório (pode ser privado — usa as creds git do utilizador)
+#   tool:        nome da ferramenta a passar a `clified-install` (chave em tools.yaml do repo)
+#   tools_yaml:  caminho do tools.yaml dentro do repo (default: tools.yaml)
+#   description: descrição curta (apresentada em `--catalog`)
+
+tools:
+  denv:
+    repo: https://github.com/LocatelliSupermercados/LocatelliDockerManager.git
+    tool: denv
+    tools_yaml: tools.yaml
+    description: "Docker Environment Manager — operações Docker Swarm (Locatelli)"
+
+  cissapi:
+    repo: https://github.com/LocatelliSupermercados/LocatelliCissApi.git
+    tool: cissapi
+    tools_yaml: cli/tools.yaml
+    description: "CLI para a API CISS / DB2 (Locatelli)"
+
+  pc:
+    repo: https://github.com/LocatelliSupermercados/ProjetoCursor.git
+    tool: pc
+    tools_yaml: tools.yaml
+    description: "CLI do Projeto Cursor (Flutter + Supabase)"

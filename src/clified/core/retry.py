@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 from clified.logging import Logger
 
-from .exceptions import ConnectionError, RetryableError, TimeoutError
+from .exceptions import ClifiedConnectionError, ClifiedTimeoutError, RetryableError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -28,8 +28,8 @@ class RetryPolicy:
     retryable_exceptions: tuple[type[Exception], ...] = field(
         default_factory=lambda: (
             RetryableError,
-            ConnectionError,
-            TimeoutError,
+            ClifiedConnectionError,
+            ClifiedTimeoutError,
             OSError,
         ),
     )

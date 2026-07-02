@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -39,6 +40,7 @@ class TestUvCmd:
 
 
 class TestPathEnvContainsDir:
+    @pytest.mark.skipif(sys.platform == "win32", reason="semântica de paths Unix")
     def test_unix_match(self) -> None:
         env = "/usr/bin:/home/user/.local/bin:/usr/local/bin"
         assert (
@@ -53,6 +55,7 @@ class TestPathEnvContainsDir:
             is False
         )
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="semântica de paths Unix")
     def test_unix_empty_entries_ignored(self) -> None:
         env = "/usr/bin::/usr/local/bin"
         assert path_env_contains_dir(env, Path("/usr/bin"), is_windows=False) is True
@@ -89,7 +92,7 @@ class TestDefaultPythonCommand:
         monkeypatch.setenv("PYTHON_CMD", "   ")
         with (
             patch(
-                "clified.installer.python_select.find_python_with_pip",
+                "clified.installer.bootstrap.find_python_with_pip",
                 side_effect=RuntimeError,
             ),
             patch("clified.installer.base.platform") as mock_plat,
@@ -102,7 +105,7 @@ class TestDefaultPythonCommand:
         monkeypatch.delenv("PYTHON_CMD", raising=False)
         with (
             patch(
-                "clified.installer.python_select.find_python_with_pip",
+                "clified.installer.bootstrap.find_python_with_pip",
                 side_effect=RuntimeError,
             ),
             patch("clified.installer.base.platform") as mock_plat,
@@ -115,7 +118,7 @@ class TestDefaultPythonCommand:
         monkeypatch.delenv("PYTHON_CMD", raising=False)
         with (
             patch(
-                "clified.installer.python_select.find_python_with_pip",
+                "clified.installer.bootstrap.find_python_with_pip",
                 side_effect=RuntimeError,
             ),
             patch("clified.installer.base.platform") as mock_plat,
@@ -129,7 +132,7 @@ class TestDefaultPythonCommand:
     ) -> None:
         monkeypatch.delenv("PYTHON_CMD", raising=False)
         with patch(
-            "clified.installer.python_select.find_python_with_pip",
+            "clified.installer.bootstrap.find_python_with_pip",
             return_value="python3.12",
         ):
             result = default_python_command()
@@ -269,6 +272,7 @@ class TestBaseInstallerCheckPython:
 
 
 class TestBaseInstallerCreateWrapper:
+    @pytest.mark.skipif(sys.platform == "win32", reason="gera wrapper bash em Unix")
     def test_unix_python_wrapper(self, tmp_path: Path) -> None:
         inst = BaseInstaller(
             project_name="demo",
@@ -280,11 +284,12 @@ class TestBaseInstallerCreateWrapper:
         )
         assert wrapper.exists()
         content = wrapper.read_text(encoding="utf-8")
-        assert "#!/bin/bash" in content
+        assert "#!/usr/bin/env bash" in content
         assert "/usr/bin/python3" in content
         assert "-m demo" in content
         assert wrapper.stat().st_mode & 0o111
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="gera wrapper bash em Unix")
     def test_unix_binary_wrapper(self, tmp_path: Path) -> None:
         inst = BaseInstaller(
             project_name="demo",

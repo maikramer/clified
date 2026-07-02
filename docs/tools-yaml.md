@@ -164,9 +164,9 @@ See [Hooks](hooks.md).
 
 | File | Origin |
 |------|--------|
-| `examples/tools.denv.yaml.example` | denv |
-| `examples/tools.pc.yaml.example` | pc |
-| `examples/tools.gamedev.yaml.example` | GameDev monorepo |
+| `bundled/examples/tools.denv.yaml.example` | denv |
+| `bundled/examples/tools.pc.yaml.example` | pc |
+| `bundled/examples/tools.gamedev.yaml.example` | GameDev monorepo |
 
 ## CLI — using the registry
 

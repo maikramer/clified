@@ -48,6 +48,12 @@ class Logger:
         """Console Rich interno, ou ``None`` no fallback ANSI."""
         return self._console
 
+    def _plain(self, label: str, msg: str) -> None:
+        """Fallback sem Rich: escreve linha prefixada em stdout (texto simples)."""
+        line = f"{label} {msg}\n" if label else f"{msg}\n"
+        sys.stdout.write(line)
+        sys.stdout.flush()
+
     def info(self, msg: str) -> None:
         """Mensagem informativa (verde)."""
         if self.rich_available:
@@ -55,7 +61,7 @@ class Logger:
                 f"[bold green]INFO[/bold green] {msg}"
             )
         else:
-            pass
+            self._plain("INFO", msg)
 
     def warning(self, message: str) -> None:
         """Alias de ``warn``."""
@@ -68,7 +74,7 @@ class Logger:
                 f"[bold yellow]WARN[/bold yellow] {message}"
             )
         else:
-            pass
+            self._plain("WARN", message)
 
     def error(self, msg: str) -> None:
         """Erro (vermelho)."""
@@ -77,7 +83,7 @@ class Logger:
                 f"[bold red]ERROR[/bold red] {msg}"
             )
         else:
-            pass
+            self._plain("ERROR", msg)
 
     def step(self, msg: str) -> None:
         """Passo de instalação (azul)."""
@@ -86,7 +92,7 @@ class Logger:
                 f"[bold blue]STEP[/bold blue] {msg}"
             )
         else:
-            pass
+            self._plain("STEP", msg)
 
     def success(self, msg: str) -> None:
         """Conclusão bem-sucedida (verde com ✓)."""
@@ -95,7 +101,7 @@ class Logger:
                 f"[bold green]✓[/bold green] {msg}"
             )
         else:
-            pass
+            self._plain("OK", msg)
 
     def header(self, text: str) -> None:
         """Secção destacada com Panel Rich."""
@@ -109,7 +115,8 @@ class Logger:
                 ),
             )
         else:
-            pass
+            sys.stdout.write(f"\n## {text}\n")
+            sys.stdout.flush()
 
     def panel(self, content: str, *, title: str = "", border: str = "green") -> None:
         """Panel Rich com título e cor de borda configuráveis."""
@@ -117,11 +124,13 @@ class Logger:
             self._console.print(  # type: ignore[union-attr]
                 Panel(content, title=title or None, border_style=border),
             )
-        elif title:
-            pass
+        else:
+            if title:
+                self._plain("", title)
+            self._plain("", content)
 
     def table(self, rows: list[tuple[str, str]], *, title: str = "") -> None:
-        """Tabela chave/valor com Rich ou fallback silencioso."""
+        """Tabela chave/valor com Rich ou fallback em texto simples."""
         if self.rich_available:
             t = Table(show_header=False, box=box.SIMPLE, title=title or None)
             for k, v in rows:
@@ -129,6 +138,6 @@ class Logger:
             self._console.print(Panel(t, border_style="cyan"))  # type: ignore[union-attr]
         else:
             if title:
-                pass
-            for _k, _v in rows:
-                pass
+                self._plain("", title)
+            for k, v in rows:
+                self._plain("", f"{k}: {v}")

@@ -33,6 +33,7 @@ tools:
     install_order: -1
     install_before: [text2d]
     cross_deps: [text2d]
+    install_before_mode: venv_only  # text2d via cross_deps/.pth apenas, sem install dedicada
     post_install: gamedev_shared.installer.clified_hooks:text3d_post_install
 
   materialize:

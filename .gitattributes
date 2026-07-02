@@ -1,0 +1,5 @@
+# Normalizar terminações de linha apenas em scripts de instalação.
+# Scripts shell em LF (bash quebra com CRLF); scripts Windows em CRLF.
+*.sh text eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf

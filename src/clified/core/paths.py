@@ -1,4 +1,11 @@
-"""Resolução de caminhos relativos ao projecto (inspirado no pc CLI)."""
+"""Paths do projecto-alvo — raiz via marcadores e ficheiros relativos.
+
+Este módulo resolve o sistema de ficheiros do projecto que o Clified está a
+instalar (não do próprio Clified): ``find_project_root`` sobe directórios até
+encontrar um marcador (``pyproject.toml``, ``Cargo.toml``, ``tools.yaml``…),
+e ``resolve_project_file`` devolve um ficheiro relativo a essa raiz.  Para os
+paths do próprio Clified (bundled, home, root), ver ``clified.paths``.
+"""
 
 from __future__ import annotations
 

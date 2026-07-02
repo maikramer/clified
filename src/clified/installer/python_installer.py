@@ -8,7 +8,13 @@ import shutil
 import subprocess
 from typing import TYPE_CHECKING
 
-from .base import BaseInstaller, has_uv, install_all_constraint_argv, uv_cmd
+from .base import (
+    BaseInstaller,
+    has_uv,
+    install_all_constraint_argv,
+    uv_cmd,
+    write_cli_wrapper,
+)
 from .requires_python import bounds_from_pyproject
 
 if TYPE_CHECKING:
@@ -448,18 +454,17 @@ class PythonProjectInstaller(BaseInstaller):
         mod = self.python_module
         for alias in extra_aliases or []:
             if self.is_windows:
-                w = self.bin_dir / f"{alias}.cmd"
-                with open(w, "w", encoding="utf-8", newline="\r\n") as f:
-                    f.write("@echo off\r\n")
-                    f.write(f'"{python_path}" -m {mod} generate %*\r\n')
-                self.logger.success(str(w))
+                command = f'"{python_path}" -m {mod} generate'
             else:
-                wrapper = self.bin_dir / alias
-                with open(wrapper, "w", encoding="utf-8") as f:
-                    f.write("#!/bin/bash\n")
-                    f.write(f'exec "{self.bin_dir}/{self.cli_name}" generate "$@"\n')
-                wrapper.chmod(0o755)
-                self.logger.success(str(wrapper))
+                command = f'"{self.bin_dir}/{self.cli_name}" generate'
+            write_cli_wrapper(
+                self.bin_dir,
+                alias,
+                command,
+                is_windows=self.is_windows,
+                project_name=self.project_name,
+                logger=self.logger,
+            )
 
     def create_activate_wrapper(self) -> Path | None:
         if self.is_windows or not self.venv_exists:

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from clified.installer.bun_installer import BunProjectInstaller
 
@@ -158,6 +161,7 @@ class TestBunInstallerInstallWrapper:
         ):
             assert inst.install_wrapper() is False
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="gera wrapper bash em Unix")
     def test_unix_wrapper(self, tmp_path: Path) -> None:
         script = tmp_path / "scripts" / "vibe-cli.mjs"
         script.parent.mkdir(parents=True)
@@ -201,6 +205,7 @@ class TestBunInstallerInstallWrapper:
 
 
 class TestBunInstallerUninstall:
+    @pytest.mark.skipif(sys.platform == "win32", reason="wrapper Unix (sem .cmd)")
     def test_removes_wrapper(self, tmp_path: Path) -> None:
         inst = BunProjectInstaller(
             project_name="vibe",
@@ -231,6 +236,7 @@ class TestBunInstallerTestInstallation:
         )
         assert inst.test_installation() is False
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="wrapper Unix (sem .cmd)")
     def test_version_check_success(self, tmp_path: Path) -> None:
         inst = BunProjectInstaller(
             project_name="vibe",

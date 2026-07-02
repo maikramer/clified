@@ -90,7 +90,7 @@ Shared across migrated projects. Handles common issues:
 - **PEP 668** → retry with `--break-system-packages`
 - **`clified-install` missing after pip** → prepends `~/.local/bin` to PATH
 
-Python equivalent: `clified.installer.bootstrap` and `python_select.py`.
+Python equivalent: `clified.installer.bootstrap` (selecção de Python + pip install).
 
 ## Bundled data (PyPI wheel)
 

@@ -36,9 +36,9 @@ src/clified/
 ├── hooks/               # MCP, skills, pytorch
 ├── integrations/        # mcp.json
 └── installer/
-    ├── bootstrap.py     # pip install clified
-    ├── python_select.py # detect Python with pip
+    ├── bootstrap.py     # pip install clified + detect Python with pip
     ├── registry.py      # tools.yaml → ToolSpec
+    ├── catalog.py       # registry.yaml → RepoSpec (--get remoto)
     ├── unified.py       # clified-install CLI
     ├── python_installer.py
     ├── rust_installer.py

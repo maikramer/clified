@@ -36,7 +36,7 @@ class NetworkError(InfrastructureError):
     """Erro de rede."""
 
 
-class ConnectionError(InfrastructureError):
+class ClifiedConnectionError(InfrastructureError):
     """Erro de conexão."""
 
 
@@ -48,7 +48,7 @@ class RetryableError(ClifiedError):
     """Operação pode ser retentada."""
 
 
-class TimeoutError(ClifiedError):
+class ClifiedTimeoutError(ClifiedError):
     """Operação excedeu tempo limite."""
 
 

@@ -14,15 +14,38 @@ Clified splits two responsibilities:
 |-------|----------------|------|
 | **Engine** | `clified` package (PyPI) | venvs, wrappers, Rust/Bun builds, hooks |
 | **Registry** | `tools.yaml` in each repo | What to install, code location, post-steps |
+| **Catalog** | `bundled/registry.yaml` | Maps a short name (`denv`) → repo + tool, for `--get` |
 
-Each project ships its own `install.sh`, sets `CLIFIED_TOOLS` to the local `tools.yaml`, and installs Clified via pip on first run. **You do not need to clone the Clified repository.**
+Each project ships its own `install.sh`, sets `CLIFIED_TOOLS` to the local `tools.yaml`, and installs Clified via pip on first run. **You do not need to clone the Clified repository.** For known tools you can skip even the project clone — `clified-install --get <tool>` clones the repo from the catalog and installs the tool in one step.
 
 ## Quick start
 
-```bash
-pip install --user clified
-# or: pipx install clified
+### One-liner (no clone needed)
 
+Install the engine and a known tool from the catalog in one shot:
+
+```bash
+# Linux / macOS — engine + tool from the catalog
+curl -fsSL https://raw.githubusercontent.com/maikramer/clified/main/install.sh | bash -s -- --get denv
+# Linux / macOS — engine only, then list remote tools
+curl -fsSL https://raw.githubusercontent.com/maikramer/clified/main/install.sh | bash
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/maikramer/clified/main/install.ps1 | iex
+# Windows + arguments
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/maikramer/clified/main/install.ps1))) --get denv
+```
+
+With no arguments the one-liner installs the engine and prints next steps.
+List known tools with `clified-install --catalog`, or point `--get` at any repo
+with `--repo`:
+
+```bash
+clified-install --get mytool --repo https://github.com/your-org/your-cli.git
+```
+
+### From a cloned project
+
+```bash
 git clone https://github.com/your-org/my-cli.git
 cd my-cli
 ./install.sh
@@ -52,6 +75,10 @@ clified-install denv --action reinstall --force
 clified-install all                 # all tools (respects install_order)
 clified-install --doctor            # health report for every tool
 clified-install --doctor --fix      # + remove CLI wrappers shadowed on PATH
+clified-install --catalog           # list remote tools known to the catalog
+clified-install --get denv          # fetch + install a remote tool (catalog)
+clified-install --get mytool --repo https://github.com/your-org/your-cli.git
+clified-install denv --retry 3      # retry transient failures up to 3 attempts
 ```
 
 ## Diagnostics (`--doctor`)
@@ -81,6 +108,7 @@ shared-package monorepos install cleanly without per-tool workarounds.
 | CLI | Repository | Type |
 |-----|------------|------|
 | **denv** | LocatelliDockerManager | Python |
+| **cissapi** | LocatelliCissApi | Python |
 | **pc** | ProjetoCursor | Python |
 | **text2d**, **materialize**, … | GameDev | Python / Rust / Bun |
 | **ai2print** | ai2print | Rust + Python (hook) |

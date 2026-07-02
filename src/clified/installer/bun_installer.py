@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from typing import TYPE_CHECKING
 
-from .base import BaseInstaller
+from .base import BaseInstaller, write_cli_wrapper
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -134,25 +134,16 @@ class BunProjectInstaller(BaseInstaller):
             return False
         node = shutil.which("node")
         assert node is not None
-        self.bin_dir.mkdir(parents=True, exist_ok=True)
         script_abs = str(self.cli_script.resolve())
-
-        if self.is_windows:
-            wrapper = self.bin_dir / f"{self.cli_name}.cmd"
-            with open(wrapper, "w", encoding="utf-8", newline="\r\n") as f:
-                f.write("@echo off\r\n")
-                f.write(f"REM {self.project_name} — gerado por clified\r\n")
-                f.write(f'"{node}" "{script_abs}" %*\r\n')
-            self.logger.success(str(wrapper))
-            return True
-
-        wrapper = self.bin_dir / self.cli_name
-        with open(wrapper, "w", encoding="utf-8") as f:
-            f.write("#!/usr/bin/env bash\n")
-            f.write(f"# {self.project_name} — gerado por clified\n")
-            f.write(f'exec "{node}" "{script_abs}" "$@"\n')
-        wrapper.chmod(0o755)
-        self.logger.success(str(wrapper))
+        command = f'"{node}" "{script_abs}"'
+        write_cli_wrapper(
+            self.bin_dir,
+            self.cli_name,
+            command,
+            is_windows=self.is_windows,
+            project_name=self.project_name,
+            logger=self.logger,
+        )
         return True
 
     def test_installation(self) -> bool:

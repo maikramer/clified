@@ -32,12 +32,26 @@ def path_env_contains_dir(path_env: str, bin_dir: Path, *, is_windows: bool) -> 
     return False
 
 
+def prepend_path_env(bin_dir: Path, *, is_windows: bool) -> bool:
+    """Prepend ``bin_dir`` a ``PATH`` (desta sessão) se ainda não estiver presente.
+
+    Devolve ``True`` se já estava presente (sem alteração), ``False`` se prependido.
+    Comparação via :func:`path_env_contains_dir` (normcase-aware).
+    """
+    path_env = os.environ.get("PATH", "")
+    if path_env_contains_dir(path_env, bin_dir, is_windows=is_windows):
+        return True
+    sep = ";" if is_windows else ":"
+    os.environ["PATH"] = f"{bin_dir.resolve()!s}{sep}{path_env}"
+    return False
+
+
 def default_python_command() -> str:
     env = os.environ.get("PYTHON_CMD", "").strip()
     if env:
         return env
     try:
-        from clified.installer.python_select import find_python_with_pip
+        from clified.installer.bootstrap import find_python_with_pip
 
         return find_python_with_pip()
     except RuntimeError:
@@ -67,6 +81,42 @@ def install_all_constraint_argv() -> list[str]:
     if path is None:
         return []
     return ["-c", str(path)]
+
+
+def write_cli_wrapper(
+    bin_dir: Path,
+    bin_name: str,
+    command: str,
+    *,
+    is_windows: bool,
+    project_name: str,
+    logger: Logger,
+) -> Path:
+    """Escreve um wrapper CLI que executa ``command`` com pass-through de args.
+
+    ``command`` é a string de argv ANTES do pass-through (``%*`` em Windows,
+    ``"$@"`` em Unix), ex.: ``'"python" -m mymod'`` ou ``'"node" "/p/cli.mjs"'``.
+    Unifica a geração de wrappers ``.cmd`` (Windows) e bash (Unix) usada pelos
+    instaladores Python, Bun e aliases de CLI.
+    """
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    if is_windows:
+        wrapper = bin_dir / f"{bin_name}.cmd"
+        with open(wrapper, "w", encoding="utf-8", newline="\r\n") as f:
+            f.write("@echo off\n")
+            f.write(f"REM {project_name} — gerado por clified\n")
+            f.write(f"{command} %*\n")
+        logger.success(str(wrapper))
+        return wrapper
+
+    wrapper = bin_dir / bin_name
+    with open(wrapper, "w", encoding="utf-8") as f:
+        f.write("#!/usr/bin/env bash\n")
+        f.write(f"# {project_name} — gerado por clified\n")
+        f.write(f'exec {command} "$@"\n')
+    wrapper.chmod(0o755)
+    logger.success(str(wrapper))
+    return wrapper
 
 
 class BaseInstaller:
@@ -265,34 +315,20 @@ class BaseInstaller:
         module_name: str | None = None,
         target_binary: Path | None = None,
     ) -> Path:
-        self.bin_dir.mkdir(parents=True, exist_ok=True)
-        if self.is_windows:
-            wrapper = self.bin_dir / f"{bin_name}.cmd"
-            with open(wrapper, "w", encoding="utf-8", newline="\r\n") as f:
-                f.write("@echo off\r\n")
-                f.write(f"REM {self.project_name} — gerado por clified\r\n")
-                if target_binary:
-                    f.write(f'"{target_binary}" %*\r\n')
-                else:
-                    py = python_path or self.python_cmd
-                    mod = module_name or self.cli_name
-                    f.write(f'"{py}" -m {mod} %*\r\n')
-            self.logger.success(str(wrapper))
-            return wrapper
-
-        wrapper = self.bin_dir / bin_name
-        with open(wrapper, "w", encoding="utf-8") as f:
-            f.write("#!/bin/bash\n")
-            f.write(f"# {self.project_name} — gerado por clified\n")
-            if target_binary:
-                f.write(f'exec "{target_binary}" "$@"\n')
-            else:
-                py = python_path or self.python_cmd
-                mod = module_name or self.cli_name
-                f.write(f'exec "{py}" -m {mod} "$@"\n')
-        wrapper.chmod(0o755)
-        self.logger.success(str(wrapper))
-        return wrapper
+        if target_binary:
+            command = f'"{target_binary}"'
+        else:
+            py = python_path or self.python_cmd
+            mod = module_name or self.cli_name
+            command = f'"{py}" -m {mod}'
+        return write_cli_wrapper(
+            self.bin_dir,
+            bin_name,
+            command,
+            is_windows=self.is_windows,
+            project_name=self.project_name,
+            logger=self.logger,
+        )
 
     def _ensure_windows_user_path(self) -> bool:
         if sys.platform != "win32":
@@ -376,7 +412,6 @@ class BaseInstaller:
 
     def check_path(self) -> bool:
         bin_str = str(self.bin_dir.resolve())
-        sep = ";" if self.is_windows else ":"
         path_env = os.environ.get("PATH", "")
 
         if path_env_contains_dir(path_env, self.bin_dir, is_windows=self.is_windows):
@@ -388,7 +423,7 @@ class BaseInstaller:
             if self.is_windows
             else self._ensure_unix_user_path()
         )
-        os.environ["PATH"] = bin_str + sep + path_env
+        prepend_path_env(self.bin_dir, is_windows=self.is_windows)
 
         if persisted:
             self.logger.success(
