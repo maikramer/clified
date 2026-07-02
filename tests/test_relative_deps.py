@@ -24,7 +24,9 @@ def test_rewrite_relative_file_dep(tmp_path: Path) -> None:
     out, changed = _rewrite_relative_file_deps(text, tmp_path / "Tool")
     assert changed
     expected = (tmp_path / "Shared").resolve()
-    assert f"@ file://{expected}" in out
+    # Proper file URL: file:///C:/.../Shared (3 slashes, forward slashes).
+    # The malformed ``file://C:\...`` (2 slashes + backslashes) is rejected by uv.
+    assert f"@ file:///{expected.as_posix()}" in out
     assert "trimesh>=4" in out
     assert "file:../Shared" not in out
 

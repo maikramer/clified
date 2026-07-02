@@ -44,7 +44,11 @@ def _rewrite_relative_file_deps(text: str, base_dir: Path) -> tuple[str, bool]:
         rel = match.group(2)
         abs_path = (base_dir / rel).resolve()
         changed = True
-        return f"{match.group(1)}//{abs_path}"
+        # Proper file URL: file:///C:/Users/.../Shared (3 slashes, forward
+        # slashes). uv rejects the malformed ``file://C:\\...`` (2 slashes +
+        # backslashes) and also the original relative ``file:../Shared``; pip
+        # tolerates both, so this form works for either backend.
+        return f"{match.group(1)}///{abs_path.as_posix()}"
 
     return _REL_FILE_DEP.sub(_sub, text), changed
 

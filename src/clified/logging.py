@@ -98,6 +98,24 @@ class Logger:
         else:
             self._plain("ERROR", msg, stream=sys.stderr if self.is_json else None)
 
+    def exception(self, msg: str) -> None:
+        """Erro com traceback (vermelho). Em modo JSON vai para stderr.
+
+        Vários instaladores chamam ``logger.exception(...)`` nos caminhos de
+        falha; delega em :meth:`error` e anexa o traceback activo quando existir.
+        """
+        self.error(msg)
+        import traceback
+
+        tb = traceback.format_exc()
+        if not tb or tb == "NoneType: None\n":
+            return
+        if self.rich_available:
+            con = self._err_console if self.is_json else self._console
+            con.print(f"[red]{tb.rstrip()}[/red]")  # type: ignore[union-attr]
+        else:
+            self._plain("", tb.rstrip(), stream=sys.stderr if self.is_json else None)
+
     def step(self, msg: str) -> None:
         """Passo de instalação (azul)."""
         if self.is_json:

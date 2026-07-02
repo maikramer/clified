@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.8.2 — 2026-07
+
+Bug fixes found by removing legacy installs and reinstalling all tools via the
+0.8 package manager (real catalog tools: GameDev + Locatelli).
+
+- **uv + relative `file:` deps**: `_rewrite_relative_file_deps` produced a
+  malformed `file://C:\\...` URL (2 slashes + backslashes) that uv rejects —
+  blocking every GameDev Python tool that depends on `gamedev-shared @
+  file:../Shared`. Now emits a proper `file:///C:/.../Shared` (3 slashes,
+  forward slashes); pip still tolerates it.
+- **`Logger.exception`**: missing method — `bun_installer`, `rust_installer`,
+  `python_installer`, `base`, and the `pytorch` hook all call
+  `logger.exception(...)` on failure, so any build/install error crashed with
+  `AttributeError` and masked the real cause. Added `Logger.exception` (delegates
+  to `error` + active traceback).
+- **SHA pinning on a shallow clone**: `clified get tool@<short-sha>` on an
+  existing shallow clone failed with `pathspec ... did not match`. `git fetch
+  --depth 1 origin <short-sha>` is rejected (server treats the short SHA as a
+  ref name) and the `git fetch origin` fallback respects the shallow boundary
+  (doesn't bring old SHAs). `_checkout_ref` now falls back to `git fetch
+  --unshallow origin` so the SHA is present for checkout.
+- Tests: +2 regression tests (`Logger.exception`, SHA-unshallow on shallow
+  clone); updated `test_rewrite_relative_file_dep` for the corrected file URL.
+
 ## 0.8.1 — 2026-07
 
 Bug fixes found via end-to-end testing of the 0.8.0 package-manager features.

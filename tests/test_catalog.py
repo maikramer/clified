@@ -423,3 +423,45 @@ def test_clone_sha_falls_back_to_full_fetch(tmp_path: Path) -> None:
         check=True,
     ).stdout.strip()
     assert head == sha
+
+
+def test_checkout_ref_sha_unshallows_existing_clone(tmp_path: Path) -> None:
+    """Pin por SHA curto num clone shallow existente via fallback --unshallow.
+
+    Um clone shallow (``--depth 1``) só tem o tip; o SHA antigo não está
+    presente. ``git fetch --depth 1 origin <sha-curto>`` falha (o servidor trata
+    o SHA curto como ref name) e o fallback ``git fetch origin`` respeita o
+    shallow boundary (não traz SHAs antigos). O fallback ``--unshallow`` traz a
+    história completa para o checkout funcionar.
+    """
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _make_git_repo(repo)  # commit 1
+    first = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    # commit 2 (novo tip)
+    (repo / "second.txt").write_text("second", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "second"], check=True)
+
+    # clone shallow no tip — só o segundo commit está presente
+    clone = tmp_path / "clone"
+    subprocess.run(
+        ["git", "clone", "--depth", "1", "-q", str(repo), str(clone)], check=True
+    )
+
+    # pin ao primeiro commit (curto) ausente do clone shallow → _checkout_ref
+    spec = catalog.RepoSpec(name="x", repo=str(repo), tool="x", ref=first[:8])
+    catalog.clone_or_update(spec, dest=clone)
+    head = subprocess.run(
+        ["git", "-C", str(clone), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert head == first

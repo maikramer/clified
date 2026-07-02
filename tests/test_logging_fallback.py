@@ -52,6 +52,20 @@ def test_warning_is_alias_of_warn(
     assert "WARN aliased" in capsys.readouterr().out
 
 
+def test_exception_emits_error_and_traceback(
+    plain_logger: Logger, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """logger.exception existe (chamado por bun/rust/python/base) — emite ERROR + traceback."""
+    try:
+        raise ValueError("boom-detail")
+    except ValueError:
+        plain_logger.exception("build falhou")
+    captured = capsys.readouterr()
+    assert "ERROR build falhou" in captured.out
+    assert "ValueError" in captured.out
+    assert "boom-detail" in captured.out
+
+
 def test_is_json_suppresses_human_output(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

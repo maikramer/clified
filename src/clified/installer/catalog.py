@@ -387,9 +387,15 @@ def _checkout_ref(dest: Path, repo: str, ref: str) -> None:
     if _is_commit_sha(ref):
         fetch = _git_run(["git", "fetch", "--depth", "1", "origin", ref], cwd=dest)
         if fetch.returncode != 0:
-            fetch = _git_run(["git", "fetch", "origin"], cwd=dest)
+            # Short SHAs are rejected as ref names by the server, and on a
+            # shallow clone ``git fetch origin`` only brings ref tips (not old
+            # SHAs). Unshallow to fetch full history so the SHA is present
+            # locally; fall back to a plain fetch if the clone isn't shallow.
+            fetch = _git_run(["git", "fetch", "--unshallow", "origin"], cwd=dest)
             if fetch.returncode != 0:
-                raise RuntimeError(fetch.stderr.strip() or "git fetch falhou")
+                fetch = _git_run(["git", "fetch", "origin"], cwd=dest)
+                if fetch.returncode != 0:
+                    raise RuntimeError(fetch.stderr.strip() or "git fetch falhou")
         checkout = _git_run(["git", "checkout", ref], cwd=dest)
     else:
         fetch = _git_run(["git", "fetch", "--depth", "1", "origin", ref], cwd=dest)
