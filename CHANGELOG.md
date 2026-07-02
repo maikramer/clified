@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.4 — 2026-07
+
+Bundled catalog snapshot: GameDev monorepo tools.
+
+- `bundled/registry.yaml`: add 16 public entries for `maikramer/GameDev`
+  (`text2d`, `text3d`, `materialize`, `vibegame`, meta `gamedev` → `all`, …).
+- Keeps offline `--catalog` / `--get` usable when the remote catalog is unreachable.
+
 ## 0.7.3 — 2026-07
 
 PATH handling for fresh machines (`pip install --user`).
