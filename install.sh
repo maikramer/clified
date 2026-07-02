@@ -86,64 +86,44 @@ fi
 # =============================================================================
 # Modo remoto: instalar motor do PyPI e delegar a clified-install
 # =============================================================================
-clified_resolve_python() {
-    if [ -n "${PYTHON_CMD:-}" ] && "${PYTHON_CMD}" -m pip --version >/dev/null 2>&1; then
-        printf '%s\n' "${PYTHON_CMD}"; return 0
-    fi
-    local c
-    for c in python3.14 python3.13 python3.12 python3.11 python3.10 python3 /usr/bin/python3; do
-        command -v "$c" >/dev/null 2>&1 || continue
-        "$c" -m pip --version >/dev/null 2>&1 || continue
-        printf '%s\n' "$c"; return 0
-    done
-    say "${RED}✗ Nenhum Python 3.10+ com pip encontrado. Instale python3-full ou defina PYTHON_CMD.${NC}"
+clified_import_bootstrap() {
+  local local_path=""
+  if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/scripts/_bootstrap.sh" ]; then
+    local_path="$SCRIPT_DIR/scripts/_bootstrap.sh"
+  fi
+  if [ -n "$local_path" ]; then
+    # shellcheck source=scripts/_bootstrap.sh
+    source "$local_path"
+    return 0
+  fi
+  local tmp url="https://raw.githubusercontent.com/maikramer/clified/main/scripts/_bootstrap.sh"
+  tmp="$(mktemp "${TMPDIR:-/tmp}/clified-bootstrap.XXXXXX.sh")"
+  if ! curl -fsSL "$url" -o "$tmp"; then
+    rm -f "$tmp"
+    say "${RED}✗ Falha ao carregar bootstrap do Clified.${NC}"
     exit 1
+  fi
+  # shellcheck source=/dev/null
+  source "$tmp"
+  rm -f "$tmp"
 }
 
-clified_install_engine() {
-    # Já instalado? Não precisa de resolver Python.
-    if command -v clified-install >/dev/null 2>&1; then return 0; fi
+clified_import_bootstrap
 
-    local py
-    py="$(clified_resolve_python)"
-    if ! "$py" -c "import sys; assert sys.version_info >= (3, 10)" 2>/dev/null; then
-        say "${RED}✗ Python 3.10+ necessário.${NC}"; exit 1
-    fi
-    export PYTHON_CMD="$py"
-
-    if "$py" -c "import clified" 2>/dev/null; then return 0; fi
-
-    local spec="${CLIFIED_VERSION:-clified}"
-    say "${CYAN}A instalar o motor clified via pip ($py)...${NC}"
-    if ! "$py" -m pip install --user --upgrade "$spec" 2>/dev/null; then
-        say "${CYAN}  → repetir com --break-system-packages (PEP 668)...${NC}"
-        "$py" -m pip install --user --break-system-packages --upgrade "$spec"
-    fi
-
-    local user_base
-    user_base="$("$py" -m site --user-base 2>/dev/null || true)"
-    if [ -n "$user_base" ] && [ -x "$user_base/bin/clified-install" ]; then
-        export PATH="$user_base/bin:${PATH}"
-    fi
-}
-
-clified_install_engine
+if ! clified_ensure_engine; then
+  say "${RED}✗ Instalação do clified falhou.${NC}"
+  exit 1
+fi
 
 if [ $# -eq 0 ]; then
-    say "${GREEN}✓ Clified instalado.${NC} Próximos passos:"
-    say "  clified-install --catalog            # listar ferramentas remotas conhecidas"
-    say "  clified-install --get denv           # instalar a ferramenta denv do catálogo"
-    say "  clified-install --get <t> --repo URL # instalar ferramenta de um repo arbitrário"
-    say "  clified-install --list               # ferramentas de um tools.yaml local"
-    exit 0
+  say "${GREEN}✓ Clified instalado.${NC} Próximos passos:"
+  say "  clified-install --catalog            # listar ferramentas remotas conhecidas"
+  say "  clified-install --get denv           # instalar a ferramenta denv do catálogo"
+  say "  clified-install --get <t> --repo URL # instalar ferramenta de um repo arbitrário"
+  say "  clified-install --list               # ferramentas de um tools.yaml local"
+  say ""
+  say "  (bin pip --user adicionado ao PATH desta sessão; em Unix também em ~/.profile se aplicável.)"
+  exit 0
 fi
 
-if command -v clified-install >/dev/null 2>&1; then
-    exec clified-install "$@"
-fi
-PY="${PYTHON_CMD:-python3}"
-if "$PY" -c "import clified" 2>/dev/null; then
-    exec "$PY" -m clified "$@"
-fi
-say "${RED}✗ Instalação do clified falhou.${NC}"
-exit 1
+clified_exec "${PYTHON_CMD}" "$@"

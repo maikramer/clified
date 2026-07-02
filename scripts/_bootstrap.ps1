@@ -2,17 +2,15 @@
 # Primitivas partilhadas de bootstrap do Clified (Windows PowerShell).
 # Dot-sourced por scripts/install-bootstrap.ps1 e por install.ps1 de projectos
 # consumidores. NÃO chama exit por si — a orquestração fica no wrapper.
-#
-#   . "$PSScriptRoot\_bootstrap.ps1"
-#   $py = Get-ClifiedPython
-#   Install-ClifiedPackage -PythonExe $py -MinVersion "0.4.1"
-#   Invoke-ClifiedExec -PythonExe $py -ToolName denv -ClifiedArgs $args
 # =============================================================================
 
 #Requires -Version 5.1
 
 function Get-ClifiedPython {
     if ($env:PYTHON_CMD) {
+        if (Get-Command $env:PYTHON_CMD -ErrorAction SilentlyContinue) {
+            return (Get-Command $env:PYTHON_CMD).Source
+        }
         if (Test-Path -LiteralPath $env:PYTHON_CMD) {
             return $env:PYTHON_CMD
         }
@@ -39,7 +37,6 @@ function Get-ClifiedPython {
 function Test-ClifiedInstalled {
     param([string]$PythonExe)
 
-    # Evita stderr do Python virar erro terminante com $ErrorActionPreference = Stop
     $prev = $ErrorActionPreference
     $ErrorActionPreference = "SilentlyContinue"
     & $PythonExe -c @"
@@ -52,46 +49,93 @@ sys.exit(0 if importlib.util.find_spec('clified') else 1)
     return $ok
 }
 
-function Add-PythonUserScriptsToPath {
+function Test-PathInPathEnv {
+    param(
+        [string]$Dir,
+        [string]$PathEnv
+    )
+    if (-not $Dir -or -not (Test-Path -LiteralPath $Dir)) { return $false }
+    try {
+        $target = [System.IO.Path]::GetFullPath($Dir).TrimEnd('\', '/').ToLowerInvariant()
+    }
+    catch {
+        return $false
+    }
+    foreach ($part in ($PathEnv -split ';')) {
+        $p = $part.Trim()
+        if (-not $p) { continue }
+        try {
+            $norm = [System.IO.Path]::GetFullPath($p).TrimEnd('\', '/').ToLowerInvariant()
+            if ($norm -eq $target) { return $true }
+        }
+        catch { }
+    }
+    return $false
+}
+
+function Get-PythonUserScriptDirs {
     param([string]$PythonExe)
 
-    $pathsToAdd = @()
+    $dirs = [System.Collections.Generic.List[string]]::new()
 
     $userBase = (& $PythonExe -m site --user-base 2>$null).Trim()
     if ($userBase) {
-        $pathsToAdd += (Join-Path $userBase "Scripts")
+        $dirs.Add((Join-Path $userBase "Scripts"))
     }
 
-    # pip --user no Windows (especialmente com Anaconda) costuma usar AppData\Roaming\Python\PythonXY\Scripts
+    # pip --user no Windows (especialmente com Anaconda) usa AppData\Roaming\Python\PythonXY\Scripts
     $prev = $ErrorActionPreference
     $ErrorActionPreference = "SilentlyContinue"
-    $ntUserScripts = (& $PythonExe -c "import sysconfig; print(sysconfig.get_path('scripts', 'nt_user'))" 2>$null).Trim()
+    $ntUserScripts = (
+        & $PythonExe -c "import sysconfig; print(sysconfig.get_path('scripts', 'nt_user'))" 2>$null
+    ).Trim()
     $ErrorActionPreference = $prev
-    if ($ntUserScripts) {
-        $pathsToAdd += $ntUserScripts
-    }
+    if ($ntUserScripts) { $dirs.Add($ntUserScripts) }
 
-    foreach ($dir in ($pathsToAdd | Select-Object -Unique)) {
-        if ((Test-Path -LiteralPath $dir) -and ($env:Path -notlike "*$dir*")) {
-            $env:Path = "$dir;$env:Path"
-        }
-    }
+    return ($dirs | Select-Object -Unique)
 }
 
-function Install-ClifiedPackage {
+function Add-PythonUserScriptsToPath {
     param(
         [string]$PythonExe,
-        [string]$MinVersion
+        [switch]$Persist
     )
 
-    Write-Host "A instalar clified>=$MinVersion via pip ($PythonExe)..." -ForegroundColor Cyan
+    $addedPersist = $false
+    foreach ($dir in (Get-PythonUserScriptDirs -PythonExe $PythonExe)) {
+        if (-not (Test-Path -LiteralPath $dir)) { continue }
+
+        if (-not (Test-PathInPathEnv -Dir $dir -PathEnv $env:Path)) {
+            $env:Path = "$dir;$env:Path"
+        }
+
+        if ($Persist) {
+            $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+            if (-not (Test-PathInPathEnv -Dir $dir -PathEnv $userPath)) {
+                $newUserPath = if ($userPath) { "$dir;$userPath" } else { $dir }
+                [Environment]::SetEnvironmentVariable('Path', $newUserPath, 'User')
+                $addedPersist = $true
+            }
+        }
+    }
+    return $addedPersist
+}
+
+function Install-ClifiedPackageSpec {
+    param(
+        [string]$PythonExe,
+        [string]$PackageSpec,
+        [switch]$PersistPath
+    )
+
+    Write-Host "A instalar $PackageSpec via pip ($PythonExe)..." -ForegroundColor Cyan
     $prev = $ErrorActionPreference
     $ErrorActionPreference = "Stop"
     try {
-        & $PythonExe -m pip install --user --upgrade "clified>=$MinVersion"
+        & $PythonExe -m pip install --user --upgrade $PackageSpec
         if ($LASTEXITCODE -ne 0) {
             Write-Host "A repetir pip com --break-system-packages (PEP 668)..." -ForegroundColor Yellow
-            & $PythonExe -m pip install --user --break-system-packages --upgrade "clified>=$MinVersion"
+            & $PythonExe -m pip install --user --break-system-packages --upgrade $PackageSpec
         }
         if ($LASTEXITCODE -ne 0) {
             Write-Host "Falha ao instalar clified." -ForegroundColor Red
@@ -102,7 +146,17 @@ function Install-ClifiedPackage {
         $ErrorActionPreference = $prev
     }
 
-    Add-PythonUserScriptsToPath -PythonExe $PythonExe
+    Add-PythonUserScriptsToPath -PythonExe $PythonExe -Persist:$PersistPath | Out-Null
+}
+
+function Install-ClifiedPackage {
+    param(
+        [string]$PythonExe,
+        [string]$MinVersion,
+        [switch]$PersistPath
+    )
+
+    Install-ClifiedPackageSpec -PythonExe $PythonExe -PackageSpec "clified>=$MinVersion" -PersistPath:$PersistPath
 }
 
 function Invoke-ClifiedExec {
@@ -112,11 +166,30 @@ function Invoke-ClifiedExec {
         [string[]]$ClifiedArgs
     )
 
+    Add-PythonUserScriptsToPath -PythonExe $PythonExe | Out-Null
+
     $clifiedInstall = Get-Command clified-install -ErrorAction SilentlyContinue
     if ($clifiedInstall) {
         & clified-install $ToolName @ClifiedArgs
         exit $LASTEXITCODE
     }
     & $PythonExe -m clified $ToolName @ClifiedArgs
+    exit $LASTEXITCODE
+}
+
+function Invoke-ClifiedExecArgs {
+    param(
+        [string]$PythonExe,
+        [string[]]$ClifiedArgs
+    )
+
+    Add-PythonUserScriptsToPath -PythonExe $PythonExe | Out-Null
+
+    $clifiedInstall = Get-Command clified-install -ErrorAction SilentlyContinue
+    if ($clifiedInstall) {
+        & $clifiedInstall.Source @ClifiedArgs
+        exit $LASTEXITCODE
+    }
+    & $PythonExe -m clified @ClifiedArgs
     exit $LASTEXITCODE
 }

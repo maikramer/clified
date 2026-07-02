@@ -70,3 +70,13 @@ def test_falls_back_to_sys_executable(monkeypatch: pytest.MonkeyPatch) -> None:
         side_effect=lambda p: p == sys.executable,
     ):
         assert bootstrap.find_python_with_pip() == sys.executable
+
+
+def test_user_script_dirs_unix_layout() -> None:
+    with (
+        patch.object(bootstrap.sys, "platform", "linux"),
+        patch("site.getuserbase", return_value="/home/u/.local"),
+    ):
+        dirs = bootstrap._user_script_dirs("/usr/bin/python3")
+    assert len(dirs) == 1
+    assert str(dirs[0]).replace("\\", "/").endswith(".local/bin")

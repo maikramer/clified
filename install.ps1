@@ -80,67 +80,45 @@ if ($devMode) {
 # =============================================================================
 # Modo remoto: instalar motor do PyPI e delegar a clified-install
 # =============================================================================
-function Get-ClifiedPython {
-    if ($env:PYTHON_CMD -and (Get-Command $env:PYTHON_CMD -ErrorAction SilentlyContinue)) {
-        $py = (Get-Command $env:PYTHON_CMD).Source
-        $prev = $ErrorActionPreference; $ErrorActionPreference = "SilentlyContinue"
-        & $py -m pip --version 2>$null | Out-Null
-        $hasPip = ($LASTEXITCODE -eq 0)
-        $ErrorActionPreference = $prev
-        if ($hasPip) { return $py }
+function Import-ClifiedBootstrap {
+    $local = if ($scriptDir) { Join-Path $scriptDir "scripts\_bootstrap.ps1" } else { $null }
+    if ($local -and (Test-Path -LiteralPath $local)) {
+        . $local
+        return
     }
-    foreach ($cmd in @("python3.12", "python3", "python")) {
-        $found = Get-Command $cmd -ErrorAction SilentlyContinue
-        if (-not $found) { continue }
-        $py = $found.Source
-        $prev = $ErrorActionPreference; $ErrorActionPreference = "SilentlyContinue"
-        & $py -m pip --version 2>$null | Out-Null
-        $hasPip = ($LASTEXITCODE -eq 0)
-        $ErrorActionPreference = $prev
-        if ($hasPip) { return $py }
+    $url = "https://raw.githubusercontent.com/maikramer/clified/main/scripts/_bootstrap.ps1"
+    $tmp = Join-Path $env:TEMP "clified-_bootstrap.ps1"
+    try {
+        (Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30).Content | Set-Content -Path $tmp -Encoding UTF8
+        . $tmp
     }
-    Write-Host "${Red}Nenhum Python 3.10+ com pip encontrado. Instale Python ou defina PYTHON_CMD.${Reset}"
-    exit 1
+    catch {
+        Write-Host "${Red}Falha ao carregar bootstrap do Clified: $_${Reset}"
+        exit 1
+    }
 }
 
-function Add-PythonUserScriptsToPath {
-    param([string]$PythonExe)
-    $pathsToAdd = @()
-    $userBase = (& $PythonExe -m site --user-base 2>$null).Trim()
-    if ($userBase) { $pathsToAdd += (Join-Path $userBase "Scripts") }
-    $prev = $ErrorActionPreference; $ErrorActionPreference = "SilentlyContinue"
-    $nt = (& $PythonExe -c "import sysconfig; print(sysconfig.get_path('scripts','nt_user'))" 2>$null).Trim()
-    $ErrorActionPreference = $prev
-    if ($nt) { $pathsToAdd += $nt }
-    foreach ($dir in ($pathsToAdd | Select-Object -Unique)) {
-        if ((Test-Path -LiteralPath $dir) -and ($env:Path -notlike "*$dir*")) {
-            $env:Path = "$dir;$env:Path"
-        }
-    }
-}
+Import-ClifiedBootstrap
 
 $py = Get-ClifiedPython
 & $py -c "import sys; assert sys.version_info >= (3, 10)" 2>$null
 if ($LASTEXITCODE -ne 0) { Write-Host "${Red}Python 3.10+ necessario.${Reset}"; exit 1 }
-Add-PythonUserScriptsToPath -PythonExe $py
+Add-PythonUserScriptsToPath -PythonExe $py | Out-Null
 
-$clifiedInstall = Get-Command clified-install -ErrorAction SilentlyContinue
-if (-not $clifiedInstall) {
-    $prev = $ErrorActionPreference; $ErrorActionPreference = "SilentlyContinue"
-    & $py -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('clified') else 1)" 2>$null | Out-Null
-    $already = ($LASTEXITCODE -eq 0)
-    $ErrorActionPreference = $prev
-    if (-not $already) {
-        $spec = if ($env:CLIFIED_VERSION) { $env:CLIFIED_VERSION } else { "clified" }
-        Write-Host "${Cyan}A instalar o motor clified via pip ($py)...${Reset}"
-        & $py -m pip install --user --upgrade $spec
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "${Cyan}  -> repetir com --break-system-packages (PEP 668)...${Reset}"
-            & $py -m pip install --user --break-system-packages --upgrade $spec
-        }
-        if ($LASTEXITCODE -ne 0) { Write-Host "${Red}Falha ao instalar clified.${Reset}"; exit $LASTEXITCODE }
-        Add-PythonUserScriptsToPath -PythonExe $py
+$needsInstall = $false
+if (-not (Get-Command clified-install -ErrorAction SilentlyContinue)) {
+    if (-not (Test-ClifiedInstalled -PythonExe $py)) {
+        $needsInstall = $true
     }
+    else {
+        Add-PythonUserScriptsToPath -PythonExe $py | Out-Null
+    }
+}
+
+if ($needsInstall) {
+    $spec = if ($env:CLIFIED_VERSION) { $env:CLIFIED_VERSION } else { "clified" }
+    Write-Host "${Cyan}A instalar o motor clified via pip ($py)...${Reset}"
+    Install-ClifiedPackageSpec -PythonExe $py -PackageSpec $spec -PersistPath
 }
 
 if ($args.Count -eq 0) {
@@ -149,13 +127,9 @@ if ($args.Count -eq 0) {
     Write-Host "  clified-install --get denv           # instalar a ferramenta denv do catalogo"
     Write-Host "  clified-install --get <t> --repo URL # instalar ferramenta de um repo arbitrario"
     Write-Host "  clified-install --list               # ferramentas de um tools.yaml local"
+    Write-Host ""
+    Write-Host "  (Scripts pip --user adicionados ao PATH do utilizador para novas sessoes.)"
     exit 0
 }
 
-$clifiedInstall = Get-Command clified-install -ErrorAction SilentlyContinue
-if ($clifiedInstall) {
-    & $clifiedInstall.Source @args
-    exit $LASTEXITCODE
-}
-& $py -m clified @args
-exit $LASTEXITCODE
+Invoke-ClifiedExecArgs -PythonExe $py -ClifiedArgs $args

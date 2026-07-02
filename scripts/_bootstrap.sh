@@ -3,11 +3,6 @@
 # Primitivas partilhadas de bootstrap do Clified (Python + pip install + exec).
 # Sourced por scripts/install-bootstrap.sh e por install.sh de projectos
 # consumidores. NÃO chama exit por si — a orquestração fica no wrapper.
-#
-#   source "$(dirname "${BASH_SOURCE[0]}")/_bootstrap.sh"
-#   py="$(clified_resolve_python)" || exit 1
-#   clified_pip_install "$py" "clified>=0.4.1"
-#   clified_exec "$py" "$@"
 # =============================================================================
 
 clified_resolve_python() {
@@ -41,6 +36,77 @@ clified_pip_install() {
   "$py" -m pip install --user --break-system-packages --upgrade "$spec"
 }
 
+clified_user_script_dirs() {
+  local py="$1"
+  local user_base
+  user_base="$("$py" -m site --user-base 2>/dev/null || true)"
+  if [[ -n "$user_base" ]]; then
+    printf '%s\n' "${user_base}/bin"
+  fi
+}
+
+clified_path_contains_dir() {
+  local dir="$1"
+  [[ -d "$dir" ]] || return 1
+  local part
+  IFS=':' read -r -a _parts <<< "${PATH:-}"
+  for part in "${_parts[@]}"; do
+    [[ -z "$part" ]] && continue
+    if [[ "$(cd "$part" 2>/dev/null && pwd -P)" == "$(cd "$dir" 2>/dev/null && pwd -P)" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+clified_prepend_user_scripts_to_path() {
+  local py="$1"
+  local dir
+  while IFS= read -r dir; do
+    [[ -d "$dir" ]] || continue
+    if ! clified_path_contains_dir "$dir"; then
+      export PATH="${dir}:${PATH}"
+    fi
+  done < <(clified_user_script_dirs "$py")
+}
+
+clified_persist_user_scripts_to_path() {
+  local py="$1"
+  local dir marker="# clified: pip --user scripts on PATH"
+  local rc added=0
+
+  while IFS= read -r dir; do
+    [[ -d "$dir" ]] || continue
+    for rc in "${HOME}/.profile" "${HOME}/.bash_profile" "${HOME}/.zprofile"; do
+      if [[ -f "$rc" ]] && grep -qF "$marker" "$rc" 2>/dev/null; then
+        if ! grep -qF "$dir" "$rc" 2>/dev/null; then
+          {
+            echo ""
+            echo "$marker"
+            echo "export PATH=\"${dir}:\${PATH}\""
+          } >>"$rc"
+          added=1
+        fi
+        break
+      fi
+    done
+    if [[ "$added" -eq 0 ]]; then
+      rc="${HOME}/.profile"
+      if [[ ! -f "$rc" ]]; then
+        touch "$rc"
+      fi
+      if ! grep -qF "$dir" "$rc" 2>/dev/null; then
+        {
+          echo ""
+          echo "$marker"
+          echo "export PATH=\"${dir}:\${PATH}\""
+        } >>"$rc"
+        added=1
+      fi
+    fi
+  done < <(clified_user_script_dirs "$py")
+}
+
 clified_find_user_bin() {
   local py="$1"
   local user_base
@@ -51,15 +117,40 @@ clified_find_user_bin() {
 }
 
 clified_exec() {
-  local py="$1"; shift
+  local py="$1"
+  shift
+  clified_prepend_user_scripts_to_path "$py"
   if command -v clified-install >/dev/null 2>&1; then
     exec clified-install "$@"
   fi
-  local user_bin
-  user_bin="$(clified_find_user_bin "$py")"
-  if [[ -n "$user_bin" ]]; then
-    export PATH="$(dirname "$user_bin"):${PATH}"
-    exec clified-install "$@"
-  fi
   exec "$py" -m clified "$@"
+}
+
+clified_ensure_engine() {
+  local py spec persist="${CLIFIED_PERSIST_PATH:-1}"
+  py="$(clified_resolve_python)" || return 1
+  if ! "$py" -c "import sys; assert sys.version_info >= (3, 10)" 2>/dev/null; then
+    echo "Python 3.10+ necessário." >&2
+    return 1
+  fi
+  export PYTHON_CMD="$py"
+  clified_prepend_user_scripts_to_path "$py"
+
+  if command -v clified-install >/dev/null 2>&1; then
+    return 0
+  fi
+  if "$py" -c "import clified" 2>/dev/null; then
+    clified_prepend_user_scripts_to_path "$py"
+    command -v clified-install >/dev/null 2>&1 && return 0
+    return 0
+  fi
+
+  spec="${CLIFIED_VERSION:-clified}"
+  echo "A instalar o motor clified via pip (${py})…" >&2
+  clified_pip_install "$py" "$spec" || return 1
+  clified_prepend_user_scripts_to_path "$py"
+  if [[ "$persist" != "0" ]]; then
+    clified_persist_user_scripts_to_path "$py"
+  fi
+  return 0
 }

@@ -159,7 +159,9 @@ def runner_argv(python: str | None = None) -> list[str]:
     return [py, "-m", "clified"]
 
 
-def _user_scripts_bin(python: str) -> str | None:
+def _user_script_dirs(python: str) -> list[Path]:
+    """Directorias onde ``pip install --user`` coloca executáveis (``clified-install``)."""
+    dirs: list[Path] = []
     try:
         import site
 
@@ -173,20 +175,47 @@ def _user_scripts_bin(python: str) -> str | None:
             timeout=10,
         )
         user_base = proc.stdout.strip()
-    if not user_base:
-        return None
-    sub = "Scripts" if sys.platform == "win32" else "bin"
-    candidate = Path(user_base) / sub / "clified-install"
-    if candidate.is_file() or shutil.which(str(candidate)):
-        return str(candidate)
+    else:
+        user_base = user_base or ""
+
+    if user_base:
+        sub = "Scripts" if sys.platform == "win32" else "bin"
+        dirs.append(Path(user_base) / sub)
+
+    if sys.platform == "win32":
+        try:
+            import sysconfig
+
+            nt_user = sysconfig.get_path("scripts", "nt_user")
+            if nt_user:
+                dirs.append(Path(nt_user))
+        except (ImportError, KeyError):
+            pass
+
+    seen: set[str] = set()
+    unique: list[Path] = []
+    for d in dirs:
+        key = str(d.resolve()) if d.exists() else str(d)
+        if key not in seen:
+            seen.add(key)
+            unique.append(d)
+    return unique
+
+
+def _user_scripts_bin(python: str) -> str | None:
+    for parent in _user_script_dirs(python):
+        candidate = parent / "clified-install"
+        if candidate.is_file() or shutil.which(str(candidate)):
+            return str(candidate)
     return None
 
 
 def run(argv: Sequence[str], *, cwd: str | None = None) -> int:
     if not is_available():
         python = install()
-        user_bin = _user_scripts_bin(python)
-        if user_bin:
-            prepend_path_env(Path(user_bin).parent, is_windows=sys.platform == "win32")
+        for parent in _user_script_dirs(python):
+            if parent.is_dir():
+                prepend_path_env(parent, is_windows=sys.platform == "win32")
+                break
     cmd = [*runner_argv(), *argv]
     return subprocess.call(cmd, cwd=cwd)

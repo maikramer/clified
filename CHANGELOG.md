@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.3 — 2026-07
+
+PATH handling for fresh machines (`pip install --user`).
+
+- Shared bootstrap (`scripts/_bootstrap.ps1` / `_bootstrap.sh`): prepend user Scripts/bin
+  to **session** PATH (normalized comparison; Windows includes `sysconfig` nt_user
+  path for Anaconda/AppData layouts).
+- After a successful engine install, **persist** user Scripts to the User PATH
+  (Windows registry) or `~/.profile` (Unix marker `# clified: pip --user scripts on PATH`).
+- `install.ps1` / `install.sh` one-liners fetch `_bootstrap` from GitHub when piped
+  (`irm | iex` / `curl | bash`) so PATH fix applies on fresh machines without a clone.
+- `install-bootstrap.{ps1,sh}` and `bootstrap.py`: prepend user script dirs before
+  invoking `clified-install`; fix early-return when package is installed but not on PATH.
+
 ## 0.7.2 — 2026-07
 
 Patch: make `--refresh-catalog` reliably fresh.

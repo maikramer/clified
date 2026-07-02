@@ -18,16 +18,20 @@ function Invoke-ClifiedBootstrap {
     )
 
     $py = Get-ClifiedPython
-    Add-PythonUserScriptsToPath -PythonExe $py
+    Add-PythonUserScriptsToPath -PythonExe $py | Out-Null
     $minVer = if ($env:CLIFIED_MIN_VERSION) { $env:CLIFIED_MIN_VERSION } else { "0.4.1" }
 
     if (Get-Command clified-install -ErrorAction SilentlyContinue) {
         Invoke-ClifiedExec -PythonExe $py -ToolName $ToolName -ClifiedArgs $ClifiedArgs
     }
     if (Test-ClifiedInstalled -PythonExe $py) {
+        Add-PythonUserScriptsToPath -PythonExe $py | Out-Null
+        if (Get-Command clified-install -ErrorAction SilentlyContinue) {
+            Invoke-ClifiedExec -PythonExe $py -ToolName $ToolName -ClifiedArgs $ClifiedArgs
+        }
         Invoke-ClifiedExec -PythonExe $py -ToolName $ToolName -ClifiedArgs $ClifiedArgs
     }
 
-    Install-ClifiedPackage -PythonExe $py -MinVersion $minVer
+    Install-ClifiedPackage -PythonExe $py -MinVersion $minVer -PersistPath
     Invoke-ClifiedExec -PythonExe $py -ToolName $ToolName -ClifiedArgs $ClifiedArgs
 }
