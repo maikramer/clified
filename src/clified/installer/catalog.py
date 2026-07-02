@@ -92,11 +92,26 @@ def _catalog_ttl() -> int:
         return _DEFAULT_CATALOG_TTL
 
 
-def _fetch_text(url: str, timeout: float = 5.0) -> str:
-    """Busca o texto de uma URL; levanta ``OSError`` em falha de rede/HTTP."""
+def _fetch_text(url: str, timeout: float = 5.0, *, bust_cache: bool = False) -> str:
+    """Busca o texto de uma URL; levanta ``OSError`` em falha de rede/HTTP.
+
+    Com ``bust_cache=True`` (usado em ``--refresh-catalog``) anexa um query
+    ``?v=<ts>`` para o CDN do raw.githubusercontent.com não servir snapshot
+    antigo — o header ``Cache-Control: no-cache`` só por si não é fiável lá.
+    A cache local (TTL) continua a ser a camada de caching do clified.
+    """
+    fetch_url = url
+    if bust_cache and "?" not in url:
+        fetch_url = f"{url}?v={int(time.time())}"
+    elif bust_cache:
+        fetch_url = f"{url}&v={int(time.time())}"
     req = urllib.request.Request(  # noqa: S310 - URL do catálogo é trusted/default
-        url,
-        headers={"User-Agent": f"clified/{version()}"},
+        fetch_url,
+        headers={
+            "User-Agent": f"clified/{version()}",
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
+        },
     )
     with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
         data = resp.read()
@@ -143,7 +158,7 @@ def _load_remote(url: str, ttl: int) -> str | None:
         return fresh
 
     try:
-        text = _fetch_text(url)
+        text = _fetch_text(url, bust_cache=(ttl == 0))
     except OSError:
         return _read_cache(cache)
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.2 — 2026-07
+
+Patch: make `--refresh-catalog` reliably fresh.
+
+- `_fetch_text` now sends `Cache-Control: no-cache` / `Pragma: no-cache` and,
+  on refresh (`--refresh-catalog` / `CLIFIED_CATALOG_TTL=0`), appends a
+  cache-busting `?v=<ts>` query so the raw.githubusercontent.com CDN doesn't
+  serve a stale catalog snapshot right after a catalog edit. The local TTL
+  cache remains the clified caching layer.
+
 ## 0.7.1 — 2026-07
 
 External catalog + graceful private-repo handling. New tools can now be added

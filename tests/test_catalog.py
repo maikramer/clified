@@ -125,7 +125,7 @@ def test_remote_fetch_success_writes_cache(
 ) -> None:
     calls: list[str] = []
 
-    def fake(url: str, timeout: float = 5.0) -> str:
+    def fake(url: str, *, bust_cache: bool = False, **_kw: object) -> str:
         calls.append(url)
         return "tools:\n  foo:\n    repo: https://x/foo.git\n    tool: foo\n"
 
@@ -158,7 +158,7 @@ def test_cache_fresh_skips_fetch(
 def test_fetch_fail_falls_back_to_bundled(
     isolated_catalog: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def fake(url: str, timeout: float = 5.0) -> str:
+    def fake(url: str, *, bust_cache: bool = False, **_kw: object) -> str:
         raise OSError("boom")
 
     monkeypatch.setattr(catalog, "_fetch_text", fake)
@@ -177,7 +177,7 @@ def test_ttl_zero_forces_fetch(
     monkeypatch.setenv("CLIFIED_CATALOG_TTL", "0")
     calls: list[str] = []
 
-    def fake(url: str, timeout: float = 5.0) -> str:
+    def fake(url: str, *, bust_cache: bool = False, **_kw: object) -> str:
         calls.append(url)
         return "tools:\n  fresh:\n    repo: https://x/f.git\n    tool: fresh\n"
 
@@ -194,7 +194,7 @@ def test_env_catalog_url_override(
     monkeypatch.setenv("CLIFIED_CATALOG", "https://example.test/other.yaml")
     calls: list[str] = []
 
-    def fake(url: str, timeout: float = 5.0) -> str:
+    def fake(url: str, *, bust_cache: bool = False, **_kw: object) -> str:
         calls.append(url)
         return "tools:\n  other:\n    repo: https://x/o.git\n    tool: other\n"
 
@@ -226,7 +226,7 @@ def test_fetch_fail_uses_stale_cache(
         encoding="utf-8",
     )
 
-    def fake(url: str, timeout: float = 5.0) -> str:
+    def fake(url: str, *, bust_cache: bool = False, **_kw: object) -> str:
         raise OSError("network down")
 
     monkeypatch.setattr(catalog, "_fetch_text", fake)
