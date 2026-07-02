@@ -14,7 +14,7 @@ O Clified separa duas responsabilidades:
 |------|-----------|--------|
 | **Motor** | Pacote `clified` (PyPI) | venvs, wrappers, build Rust/Bun, hooks |
 | **Registo** | `tools.yaml` em cada repo | O que instalar, onde está o código, pós-passos |
-| **Catálogo** | `bundled/registry.yaml` | Mapeia um nome curto (`denv`) → repo + ferramenta, para `--get` |
+| **Catálogo** | `maikramer/clified-catalog` (live) + bundled fallback | Mapeia um nome curto (`denv`) → repo + ferramenta, para `--get` |
 
 Cada projecto traz o seu `install.sh`, aponta `CLIFIED_TOOLS` para o `tools.yaml` local e instala o Clified via pip na primeira execução. **Não é necessário clonar o repositório Clified.** Para ferramentas conhecidas, podes saltar até o clone do projecto — `clified-install --get <ferramenta>` clona o repo a partir do catálogo e instala a ferramenta num só passo.
 
@@ -42,6 +42,41 @@ a qualquer repo com `--repo`:
 ```bash
 clified-install --get minha-tool --repo https://github.com/seu-usuario/seu-cli.git
 ```
+
+## Catálogo remoto (`--get` / `--catalog`)
+
+O catálogo mapeia um nome curto (`denv`, `cissapi`, `pc`, …) a um repo + ferramenta.
+Por defeito é lido live de [`maikramer/clified-catalog`](https://github.com/maikramer/clified-catalog)
+(raw `registry.yaml`) com cache local (`~/.config/clified/catalog.cache.yaml`,
+TTL 1h) e fallback ao snapshot embutido quando offline. **Adicionar uma
+ferramenta não exige novo release do Clified** — basta editar o repo do catálogo.
+
+```bash
+clified-install --catalog                    # listar ferramentas remotas (privadas marcadas)
+clified-install --refresh-catalog --catalog  # ignora cache, força refresh
+clified-install --get denv                   # buscar + instalar do catálogo
+```
+
+| Env | Default | Efeito |
+|-----|---------|--------|
+| `CLIFIED_CATALOG` | *(unset)* | Override do catálogo: URL (`http(s)://`) ou path local. |
+| `CLIFIED_CATALOG_TTL` | `3600` | TTL da cache em segundos. `0` = sempre fetch; `-1` = só bundled (offline). |
+
+### Público vs privado
+
+Cada entrada tem um campo opcional `access: public|private` (default `public`).
+O `--catalog` marca as privadas como `(privado)` e o `--get <privada>` avisa
+antes de clonar. Repos privados (ex.: `LocatelliSupermercados/*`) são clonados
+com as tuas creds git (chave SSH / token HTTPS via git credential manager). Sem
+acesso, o Clified **falha de forma suave** com mensagem clara — sem crash do git.
+
+### Publicar uma ferramenta
+
+- **Sem catálogo** — qualquer repo público: `clified-install --get minha-tool --repo https://github.com/.../x.git`.
+- **Catálogo público** — abre um PR a `maikramer/clified-catalog` com
+  `access: public`.
+- **Self-host** — mantém o teu `registry.yaml` (repo privado ou ficheiro local)
+  e aponta o Clified com `CLIFIED_CATALOG=<url-ou-path>`.
 
 ### A partir de um projecto clonado
 
@@ -75,6 +110,7 @@ clified-install denv                # instalar uma ferramenta
 clified-install denv --action reinstall --force
 clified-install all                 # todas (respeita install_order)
 clified-install --catalog           # listar ferramentas remotas conhecidas
+clified-install --refresh-catalog --catalog  # forçar refresh do catálogo
 clified-install --get denv          # buscar + instalar ferramenta remota (catálogo)
 clified-install --get minha-tool --repo https://github.com/seu-usuario/seu-cli.git
 clified-install denv --retry 3      # retentar falhas transitórias até 3 tentativas

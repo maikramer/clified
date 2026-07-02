@@ -505,6 +505,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Listar ferramentas remotas conhecidas (--get)",
     )
     parser.add_argument(
+        "--refresh-catalog",
+        action="store_true",
+        help="Forçar refresh do catálogo remoto (ignora cache; equiv. CLIFIED_CATALOG_TTL=0)",
+    )
+    parser.add_argument(
         "--sources-dir",
         default=None,
         help="Onde clonar repositórios remotos (default: ~/.clified/sources)",
@@ -535,6 +540,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
     _apply_runtime_defaults(args)
+
+    if getattr(args, "refresh_catalog", False):
+        os.environ["CLIFIED_CATALOG_TTL"] = "0"
 
     from clified.cli.output import OutputFormatter
 
@@ -667,6 +675,7 @@ def _print_catalog(logger: Logger, output: OutputFormatter) -> int:
                         "tool": s.tool,
                         "tools_yaml": s.tools_yaml,
                         "description": s.description,
+                        "access": s.access,
                     }
                     for s in known
                 ],
@@ -678,7 +687,10 @@ def _print_catalog(logger: Logger, output: OutputFormatter) -> int:
     if not known:
         logger.warn("Catálogo vazio (sem registry.yaml).")
         return 0
-    rows = [(s.name, f"{s.repo}  ->  clified-install {s.tool}") for s in known]
+    rows = []
+    for s in known:
+        label = f"{s.name} (privado)" if s.access == "private" else s.name
+        rows.append((label, f"{s.repo}  ->  clified-install {s.tool}"))
     logger.table(rows, title="Ferramentas remotas conhecidas (--get)")
     return 0
 
@@ -702,6 +714,12 @@ def _run_get(args: argparse.Namespace, logger: Logger) -> int:
 
     if args.sources_dir:
         os.environ["CLIFIED_SOURCES"] = str(Path(args.sources_dir).expanduser())
+
+    if spec.access == "private":
+        logger.warn(
+            f"{spec.tool!r} é privada — requer permissão de leitura no git "
+            "da organização (ex.: Locatelli)."
+        )
 
     try:
         dest = catalog.clone_or_update(spec, logger=logger)

@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.7.1 — 2026-07
+
+External catalog + graceful private-repo handling. New tools can now be added
+without a Clified engine release.
+
+### Live catalog (external repo)
+- `clified-install` now reads the catalog from
+  `maikramer/clified-catalog` (raw `registry.yaml`) **by default**, with a local
+  cache (`~/.config/clified/catalog.cache.yaml`, TTL 1h) and fallback to the
+  bundled `registry.yaml` when offline.
+- `CLIFIED_CATALOG` overrides the source (URL `http(s)://` or local path).
+- `CLIFIED_CATALOG_TTL`: cache TTL in seconds. `0` = always fetch; `-1` =
+  bundled only (offline).
+- `clified-install --refresh-catalog`: force a fresh fetch (ignores cache).
+- `bundled/registry.yaml` is now an offline snapshot (commented as such).
+
+### Public + private tools, graceful failure
+- New optional `access: public|private` field per catalog entry (default
+  `public`). `--catalog` marks private tools as `(privado)`; `--get <private>`
+  warns before cloning.
+- Private repos (e.g. `LocatelliSupermercados/*`) still clone with the user's
+  git credentials. On auth/access denial (`authentication failed`,
+  `permission denied`, `not found`, …) the clone now **fails gracefully** with a
+  clear message instead of the raw `git` stderr.
+
+### Publishing tools (3 paths)
+- No catalog: `clified-install --get <name> --repo <url>`.
+- Public catalog: open a PR to `maikramer/clified-catalog` (`access: public`).
+- Self-host: point `CLIFIED_CATALOG` at your own private/local `registry.yaml`.
+
 ## 0.7.0 — 2026-07
 
 Major overhaul: frictionless one-liner install, remote tool catalog, bootstrap

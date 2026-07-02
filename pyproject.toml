@@ -115,6 +115,8 @@ ignore = [
     "TC002",
     "TC003",
     "S108",
+    "TRY003",
+    "EM101",
 ]
 "src/clified/installer/**/*.py" = [
     "S603",

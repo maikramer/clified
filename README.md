@@ -14,7 +14,7 @@ Clified splits two responsibilities:
 |-------|----------------|------|
 | **Engine** | `clified` package (PyPI) | venvs, wrappers, Rust/Bun builds, hooks |
 | **Registry** | `tools.yaml` in each repo | What to install, code location, post-steps |
-| **Catalog** | `bundled/registry.yaml` | Maps a short name (`denv`) → repo + tool, for `--get` |
+| **Catalog** | `maikramer/clified-catalog` (live) + bundled fallback | Maps a short name (`denv`) → repo + tool, for `--get` |
 
 Each project ships its own `install.sh`, sets `CLIFIED_TOOLS` to the local `tools.yaml`, and installs Clified via pip on first run. **You do not need to clone the Clified repository.** For known tools you can skip even the project clone — `clified-install --get <tool>` clones the repo from the catalog and installs the tool in one step.
 
@@ -42,6 +42,42 @@ with `--repo`:
 ```bash
 clified-install --get mytool --repo https://github.com/your-org/your-cli.git
 ```
+
+## Remote catalog (`--get` / `--catalog`)
+
+The catalog maps a short name (`denv`, `cissapi`, `pc`, …) to a git repo + tool.
+By default it's read live from [`maikramer/clified-catalog`](https://github.com/maikramer/clified-catalog)
+(raw `registry.yaml`) with a local cache (`~/.config/clified/catalog.cache.yaml`,
+TTL 1h) and falls back to the bundled snapshot when offline. **Adding a tool no
+longer requires a Clified release** — just edit the catalog repo.
+
+```bash
+clified-install --catalog                 # list remote tools (private marked)
+clified-install --refresh-catalog --catalog  # ignore cache, force fresh fetch
+clified-install --get denv                # fetch + install from the catalog
+```
+
+| Env | Default | Effect |
+|-----|---------|--------|
+| `CLIFIED_CATALOG` | unset | Override the catalog source: URL (`http(s)://`) or local path. |
+| `CLIFIED_CATALOG_TTL` | `3600` | Cache TTL in seconds. `0` = always fetch; `-1` = bundled only (offline). |
+
+### Public vs private tools
+
+Each entry has an optional `access: public|private` (default `public`).
+`--catalog` marks private tools as `(privado)` and `--get <private>` warns
+before cloning. Private repos (e.g. `LocatelliSupermercados/*`) clone with your
+own git credentials (SSH key / HTTPS token via git credential manager). On
+access denial Clified **fails gracefully** with a clear message — no raw git
+crash.
+
+### Publishing a tool
+
+- **No catalog** — any public repo: `clified-install --get mytool --repo https://github.com/you/x.git`.
+- **Public catalog** — open a PR to `maikramer/clified-catalog` with
+  `access: public`.
+- **Self-host** — keep your own `registry.yaml` (private repo or local file)
+  and point Clified at it with `CLIFIED_CATALOG=<url-or-path>`.
 
 ### From a cloned project
 
@@ -76,6 +112,7 @@ clified-install all                 # all tools (respects install_order)
 clified-install --doctor            # health report for every tool
 clified-install --doctor --fix      # + remove CLI wrappers shadowed on PATH
 clified-install --catalog           # list remote tools known to the catalog
+clified-install --refresh-catalog --catalog  # force fresh catalog fetch
 clified-install --get denv          # fetch + install a remote tool (catalog)
 clified-install --get mytool --repo https://github.com/your-org/your-cli.git
 clified-install denv --retry 3      # retry transient failures up to 3 attempts

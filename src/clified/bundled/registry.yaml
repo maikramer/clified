@@ -2,11 +2,19 @@
 # Usado por `clified-install --get <tool>` e pelo one-liner
 # `curl -fsSL .../install.sh | bash -s -- --get <tool>`.
 #
+# NOTA: este ficheiro é o **fallback offline** (snapshot). O catálogo live é
+# lido por defeito de https://github.com/maikramer/clified-catalog (raw) com
+# cache local (TTL 1h, env CLIFIED_CATALOG_TTL). Para adicionar uma ferramenta
+# nova, edita o catálogo live — não é preciso novo release do clified.
+# Override: CLIFIED_CATALOG=<url-ou-path>; refresh: --refresh-catalog.
+#
 # Campos por ferramenta:
 #   repo:        URL git do repositório (pode ser privado — usa as creds git do utilizador)
 #   tool:        nome da ferramenta a passar a `clified-install` (chave em tools.yaml do repo)
 #   tools_yaml:  caminho do tools.yaml dentro do repo (default: tools.yaml)
 #   description: descrição curta (apresentada em `--catalog`)
+#   access:      public (default) | private (informational; private requer permissão
+#                de leitura no git da organização — o clified falha de forma suave sem acesso)
 
 tools:
   denv:
@@ -14,15 +22,18 @@ tools:
     tool: denv
     tools_yaml: tools.yaml
     description: "Docker Environment Manager — operações Docker Swarm (Locatelli)"
+    access: private
 
   cissapi:
     repo: https://github.com/LocatelliSupermercados/LocatelliCissApi.git
     tool: cissapi
     tools_yaml: cli/tools.yaml
     description: "CLI para a API CISS / DB2 (Locatelli)"
+    access: private
 
   pc:
     repo: https://github.com/LocatelliSupermercados/ProjetoCursor.git
     tool: pc
     tools_yaml: tools.yaml
     description: "CLI do Projeto Cursor (Flutter + Supabase)"
+    access: private
