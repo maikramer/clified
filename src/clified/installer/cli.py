@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import os
 import platform
-import shutil
 import sys
 from pathlib import Path
 
@@ -137,17 +136,12 @@ def _cmd_list(args: argparse.Namespace) -> int:
     if not rows:
         logger.info("Nenhuma ferramenta instalada registada.")
         return 0
-    table = [
-        (
-            r["name"],
-            r["kind"],
-            r["commit_short"] or r["ref"] or "-",
-            r["source"],
-            r["status"],
-        )
-        for r in rows
-    ]
-    logger.table(table, title="Ferramentas instaladas (clified list)")
+    output.table(
+        rows,
+        columns=["name", "kind", "commit_short", "source", "status"],
+        title="Ferramentas instaladas (clified list)",
+        json_key="installed",
+    )
     return 0
 
 
@@ -190,7 +184,21 @@ def _cmd_search(args: argparse.Namespace) -> int:
     if not matches:
         logger.warn(f"Nenhum resultado para {args.query!r}")
         return 0
-    rows = [(m["name"], m["description"] or m["repo"]) for m in matches]
+
+    def _esc(text: str) -> str:
+        # Rich interpreta [...] como markup; fazer escape em modo rich.
+        if getattr(logger, "rich_available", False):
+            return text.replace("[", "\\[")
+        return text
+
+    rows = []
+    for m in matches:
+        label = m["name"]
+        if m["access"] == "private":
+            label += " (privado)"
+        if m["installed"]:
+            label += " [instalado]"
+        rows.append((_esc(label), _esc(m["description"] or m["repo"])))
     logger.table(rows, title=f"Catálogo — {args.query!r}")
     return 0
 
@@ -274,6 +282,7 @@ def _update_one(
 
     new_ref = (ref or receipt.ref or "").strip()
     pulled = False
+    fresh_commit = receipt.commit
     if receipt.source != "local" and receipt.repo_clone_path:
         clone = Path(receipt.repo_clone_path)
         if clone.is_dir() and (clone / ".git").is_dir():
@@ -293,8 +302,8 @@ def _update_one(
             else:
                 _git_pull_changed(clone)
                 pulled = True
-            commit = catalog.git_head_commit(clone)
-            update_receipt(name, commit=commit, ref=new_ref or receipt.ref)
+            fresh_commit = catalog.git_head_commit(clone) or receipt.commit
+            update_receipt(name, commit=fresh_commit, ref=new_ref or receipt.ref)
 
     ctx = ReceiptContext(
         receipt_key=name,
@@ -302,7 +311,7 @@ def _update_one(
         catalog_name=receipt.catalog_name,
         repo=receipt.repo,
         ref=new_ref or receipt.ref,
-        commit=receipt.commit,
+        commit=fresh_commit,
         repo_clone_path=receipt.repo_clone_path,
         tools_yaml=receipt.tools_yaml,
     )
@@ -428,12 +437,12 @@ def _cmd_uninstall(args: argparse.Namespace) -> int:
     if args.purge and receipt.repo_clone_path:
         clone = Path(receipt.repo_clone_path)
         if clone.is_dir():
-            shutil.rmtree(clone, ignore_errors=True)
+            catalog._rm_tree(clone)
             logger.success(f"Clone removido: {clone}")
         elif receipt.repo:
             fallback = catalog.sources_dir() / name
             if fallback.is_dir():
-                shutil.rmtree(fallback, ignore_errors=True)
+                catalog._rm_tree(fallback)
                 logger.success(f"Clone removido: {fallback}")
 
     if output.is_json:
@@ -540,4 +549,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_subparsers()
     args = parser.parse_args(argv)
     _apply_pipe_defaults(args)
-    return _dispatch(args.command, args)
+    if getattr(args, "json", False):
+        os.environ["CLIFIED_JSON"] = "1"
+    else:
+        os.environ.pop("CLIFIED_JSON", None)
+    try:
+        return _dispatch(args.command, args)
+    finally:
+        os.environ.pop("CLIFIED_JSON", None)

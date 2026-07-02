@@ -78,3 +78,46 @@ def test_list_with_status() -> None:
     rows = list_with_status()
     assert len(rows) == 1
     assert rows[0]["name"] == "demo"
+
+
+def test_repo_clone_path_roundtrip(tmp_path: Path) -> None:
+    """repo_clone_path deve round-trip no state (necessário para update/uninstall)."""
+    clone = tmp_path / "sources" / "demo"
+    receipt = InstallReceipt(
+        kind="python",
+        cli_name="demo",
+        source="repo",
+        repo="https://example.com/demo.git",
+        ref="",
+        commit="deadbeef",
+        repo_clone_path=str(clone),
+        artifacts=[str(tmp_path / "bin" / "demo")],
+    )
+    record_install("demo", receipt)
+    loaded = get("demo")
+    assert loaded is not None
+    assert loaded.repo_clone_path == str(clone)
+
+
+def test_from_dict_missing_repo_clone_path_defaults_empty() -> None:
+    """Receipts antigas (sem repo_clone_path) carregam com string vazia."""
+    legacy = {
+        "kind": "python",
+        "cli_name": "demo",
+        "source": "repo",
+        "repo": "https://example.com/demo.git",
+        "ref": "",
+        "commit": "abc",
+        "tools_yaml": "",
+        "project_root": "",
+        "venv_path": "",
+        "catalog_name": "demo",
+        "install_prefix": "",
+        "artifacts": [],
+        "installed_at": "",
+        "updated_at": "",
+        "clified_version": "0.7.4",
+    }
+    receipt = InstallReceipt.from_dict(legacy)
+    assert receipt.repo_clone_path == ""
+    assert receipt.commit == "abc"

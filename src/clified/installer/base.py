@@ -148,6 +148,11 @@ class BaseInstaller:
         self.logger = Logger()
         self.artifacts: list[str] = []
 
+    @property
+    def _subprocess_stdout(self):
+        """Alvo de stdout para subprocessos: stderr em modo JSON, None (herdar) caso contrário."""
+        return sys.stderr if getattr(self.logger, "is_json", False) else None
+
     def track_artifact(self, path: Path) -> None:
         self.artifacts.append(str(path.expanduser().resolve()))
 

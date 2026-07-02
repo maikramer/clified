@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import os
 import sys
 
 
@@ -35,8 +36,10 @@ class Logger:
     def __init__(self, console: Console | None = None) -> None:
         if _RICH:
             self._console: Console | None = console or Console()
+            self._err_console: Console | None = Console(stderr=True)
         else:
             self._console = None
+            self._err_console = None
 
     @property
     def rich_available(self) -> bool:
@@ -44,18 +47,26 @@ class Logger:
         return _RICH and self._console is not None
 
     @property
+    def is_json(self) -> bool:
+        """True quando ``CLIFIED_JSON=1`` (saída humana suprimida)."""
+        return os.environ.get("CLIFIED_JSON") == "1"
+
+    @property
     def console(self) -> Console | None:
         """Console Rich interno, ou ``None`` no fallback ANSI."""
         return self._console
 
-    def _plain(self, label: str, msg: str) -> None:
-        """Fallback sem Rich: escreve linha prefixada em stdout (texto simples)."""
+    def _plain(self, label: str, msg: str, *, stream=None) -> None:
+        """Fallback sem Rich: escreve linha prefixada (texto simples)."""
         line = f"{label} {msg}\n" if label else f"{msg}\n"
-        sys.stdout.write(line)
-        sys.stdout.flush()
+        out = stream or sys.stdout
+        out.write(line)
+        out.flush()
 
     def info(self, msg: str) -> None:
         """Mensagem informativa (verde)."""
+        if self.is_json:
+            return
         if self.rich_available:
             self._console.print(  # type: ignore[union-attr]
                 f"[bold green]INFO[/bold green] {msg}"
@@ -68,25 +79,29 @@ class Logger:
         self.warn(message)
 
     def warn(self, message: str) -> None:
-        """Aviso (amarelo)."""
+        """Aviso (amarelo). Em modo JSON vai para stderr."""
         if self.rich_available:
-            self._console.print(  # type: ignore[union-attr]
+            con = self._err_console if self.is_json else self._console
+            con.print(  # type: ignore[union-attr]
                 f"[bold yellow]WARN[/bold yellow] {message}"
             )
         else:
-            self._plain("WARN", message)
+            self._plain("WARN", message, stream=sys.stderr if self.is_json else None)
 
     def error(self, msg: str) -> None:
-        """Erro (vermelho)."""
+        """Erro (vermelho). Em modo JSON vai para stderr."""
         if self.rich_available:
-            self._console.print(  # type: ignore[union-attr]
+            con = self._err_console if self.is_json else self._console
+            con.print(  # type: ignore[union-attr]
                 f"[bold red]ERROR[/bold red] {msg}"
             )
         else:
-            self._plain("ERROR", msg)
+            self._plain("ERROR", msg, stream=sys.stderr if self.is_json else None)
 
     def step(self, msg: str) -> None:
         """Passo de instalação (azul)."""
+        if self.is_json:
+            return
         if self.rich_available:
             self._console.print(  # type: ignore[union-attr]
                 f"[bold blue]STEP[/bold blue] {msg}"
@@ -96,6 +111,8 @@ class Logger:
 
     def success(self, msg: str) -> None:
         """Conclusão bem-sucedida (verde com ✓)."""
+        if self.is_json:
+            return
         if self.rich_available:
             self._console.print(  # type: ignore[union-attr]
                 f"[bold green]✓[/bold green] {msg}"
@@ -105,6 +122,8 @@ class Logger:
 
     def header(self, text: str) -> None:
         """Secção destacada com Panel Rich."""
+        if self.is_json:
+            return
         if self.rich_available:
             self._console.print()  # type: ignore[union-attr]
             self._console.print(  # type: ignore[union-attr]
@@ -120,6 +139,8 @@ class Logger:
 
     def panel(self, content: str, *, title: str = "", border: str = "green") -> None:
         """Panel Rich com título e cor de borda configuráveis."""
+        if self.is_json:
+            return
         if self.rich_available:
             self._console.print(  # type: ignore[union-attr]
                 Panel(content, title=title or None, border_style=border),
@@ -131,6 +152,8 @@ class Logger:
 
     def table(self, rows: list[tuple[str, str]], *, title: str = "") -> None:
         """Tabela chave/valor com Rich ou fallback em texto simples."""
+        if self.is_json:
+            return
         if self.rich_available:
             t = Table(show_header=False, box=box.SIMPLE, title=title or None)
             for k, v in rows:

@@ -50,3 +50,35 @@ def test_warning_is_alias_of_warn(
 ) -> None:
     plain_logger.warning("aliased")
     assert "WARN aliased" in capsys.readouterr().out
+
+
+def test_is_json_suppresses_human_output(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Em modo JSON, info/step/success/panel/table são suprimidos; warn/error vão para stderr."""
+    monkeypatch.setattr(clified_logging, "_RICH", False)
+    monkeypatch.setenv("CLIFIED_JSON", "1")
+    log = Logger()
+    assert log.is_json is True
+    log.info("hidden-info")
+    log.step("hidden-step")
+    log.success("hidden-ok")
+    log.panel("hidden-panel", title="t")
+    log.table([("k", "v")], title="t")
+    log.warn("visible-warn")
+    log.error("visible-error")
+    captured = capsys.readouterr()
+    assert captured.out == ""  # stdout limpo para JSON
+    assert "WARN visible-warn" in captured.err
+    assert "ERROR visible-error" in captured.err
+
+
+def test_is_json_off_by_default(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.delenv("CLIFIED_JSON", raising=False)
+    monkeypatch.setattr(clified_logging, "_RICH", False)
+    log = Logger()
+    assert log.is_json is False
+    log.info("shown")
+    assert "INFO shown" in capsys.readouterr().out

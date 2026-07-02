@@ -307,6 +307,39 @@ def git_head_commit(repo_dir: Path) -> str:
     return (result.stdout or "").strip() if result.returncode == 0 else ""
 
 
+def _current_branch(repo_dir: Path) -> str | None:
+    """Branch actual (None se em detached HEAD)."""
+    r = _git_run(["git", "symbolic-ref", "-q", "--short", "HEAD"], cwd=repo_dir)
+    if r.returncode == 0 and r.stdout.strip():
+        return r.stdout.strip()
+    return None
+
+
+def _default_branch(repo_dir: Path) -> str:
+    """Detecta o branch por omissão do remote."""
+    r = _git_run(
+        ["git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD"], cwd=repo_dir
+    )
+    if r.returncode == 0 and r.stdout.strip():
+        return r.stdout.strip().split("/", 1)[-1]
+    for cand in ("main", "master", "trunk"):
+        c = _git_run(
+            ["git", "rev-parse", "--verify", "--quiet", f"refs/remotes/origin/{cand}"],
+            cwd=repo_dir,
+        )
+        if c.returncode == 0:
+            return cand
+    b = _git_run(
+        ["git", "for-each-ref", "--format=%(refname:short)", "refs/remotes/origin"],
+        cwd=repo_dir,
+    )
+    for line in (b.stdout or "").splitlines():
+        name = line.strip()
+        if name and name.lower() != "head":
+            return name.split("/", 1)[-1]
+    return "main"
+
+
 def _git_run(args: list[str], *, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         args,
@@ -326,10 +359,14 @@ def _clone_shallow(repo: str, dest: Path, ref: str) -> None:
         remote = _git_run(["git", "remote", "add", "origin", repo], cwd=dest)
         if remote.returncode != 0:
             raise RuntimeError(remote.stderr.strip() or "git remote add falhou")
+        # Shallow-by-SHA needs server-side allowReachableSHA1InWant (GitHub has
+        # it; local/bare repos usually don't). Fall back to a full fetch.
         fetch = _git_run(["git", "fetch", "--depth", "1", "origin", ref], cwd=dest)
         if fetch.returncode != 0:
-            raise RuntimeError(fetch.stderr.strip() or "git fetch falhou")
-        checkout = _git_run(["git", "checkout", "FETCH_HEAD"], cwd=dest)
+            fetch = _git_run(["git", "fetch", "origin"], cwd=dest)
+            if fetch.returncode != 0:
+                raise RuntimeError(fetch.stderr.strip() or "git fetch falhou")
+        checkout = _git_run(["git", "checkout", ref], cwd=dest)
         if checkout.returncode != 0:
             raise RuntimeError(checkout.stderr.strip() or "git checkout falhou")
         return
@@ -350,8 +387,10 @@ def _checkout_ref(dest: Path, repo: str, ref: str) -> None:
     if _is_commit_sha(ref):
         fetch = _git_run(["git", "fetch", "--depth", "1", "origin", ref], cwd=dest)
         if fetch.returncode != 0:
-            raise RuntimeError(fetch.stderr.strip() or "git fetch falhou")
-        checkout = _git_run(["git", "checkout", "FETCH_HEAD"], cwd=dest)
+            fetch = _git_run(["git", "fetch", "origin"], cwd=dest)
+            if fetch.returncode != 0:
+                raise RuntimeError(fetch.stderr.strip() or "git fetch falhou")
+        checkout = _git_run(["git", "checkout", ref], cwd=dest)
     else:
         fetch = _git_run(["git", "fetch", "--depth", "1", "origin", ref], cwd=dest)
         if fetch.returncode != 0:
@@ -406,7 +445,16 @@ def clone_or_update(
 
         if logger is not None:
             _log(logger, f"Actualizando {spec.name} ({dest})...")
-        result = _git_run(["git", "-C", str(dest), "pull", "--ff-only"])
+        branch = _current_branch(dest)
+        if branch is None:
+            # detached HEAD (ex.: pin de SHA anterior) — voltar ao branch por omissão
+            branch = _default_branch(dest)
+            _git_run(["git", "checkout", "-B", branch, f"origin/{branch}"], cwd=dest)
+            result = _git_run(
+                ["git", "-C", str(dest), "pull", "--ff-only", "origin", branch]
+            )
+        else:
+            result = _git_run(["git", "-C", str(dest), "pull", "--ff-only"])
         if result.returncode != 0:
             msg = _classify_clone_error(spec.repo, result.stderr)
             raise RuntimeError(msg)
@@ -449,9 +497,27 @@ def _log(logger: object, msg: str) -> None:
 
 
 def _rm_tree(path: Path) -> None:
+    """Remove árvore robustamente (ficheiros read-only do git no Windows)."""
     import shutil
+    import stat
 
-    shutil.rmtree(path, ignore_errors=True)
+    def _onexc(func, p, _exc) -> None:
+        try:
+            os.chmod(p, stat.S_IWRITE)
+        except OSError:
+            pass
+        try:
+            func(p)
+        except OSError:
+            pass
+
+    try:
+        shutil.rmtree(path, onexc=_onexc)
+    except TypeError:  # Python < 3.12 (sem onexc)
+        def _onerror(func, p, _exc_info) -> None:
+            _onexc(func, p, None)
+
+        shutil.rmtree(path, onerror=_onerror)
 
 
 def iter_known_names() -> Iterable[str]:

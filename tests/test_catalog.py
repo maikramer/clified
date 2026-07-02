@@ -342,3 +342,84 @@ def test_clone_with_branch_passes_branch_flag(
 def test_is_commit_sha() -> None:
     assert catalog._is_commit_sha("abc1234")
     assert not catalog._is_commit_sha("main")
+
+
+def _make_git_repo(path: Path) -> None:
+    """Cria um git repo real com 2 commits para testes de branch/clone."""
+    import subprocess
+
+    path.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=path, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@clified.dev"], cwd=path, check=True
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"], cwd=path, check=True
+    )
+    (path / "README.md").write_text("hello", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=path, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "first"], cwd=path, check=True
+    )
+
+
+def test_current_branch_and_default(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _make_git_repo(repo)
+    clone = tmp_path / "clone"
+    import subprocess
+
+    subprocess.run(
+        ["git", "clone", "-q", str(repo), str(clone)], check=True
+    )
+    assert catalog._current_branch(clone) == "main"
+    assert catalog._default_branch(clone) == "main"
+    # detached HEAD after checking out a SHA
+    sha = subprocess.run(
+        ["git", "-C", str(clone), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    subprocess.run(["git", "-C", str(clone), "checkout", "-q", sha], check=True)
+    assert catalog._current_branch(clone) is None
+    assert catalog._default_branch(clone) == "main"
+
+
+def test_rm_tree_removes_readonly_git_objects(tmp_path: Path) -> None:
+    """_rm_tree deve remover ficheiros read-only do git (Windows)."""
+    import os
+    import stat
+
+    repo = tmp_path / "repo"
+    _make_git_repo(repo)
+    # tornar um object pack read-only (simula permissões git)
+    obj = next((repo / ".git" / "objects").rglob("*"))
+    if obj.is_file():
+        os.chmod(obj, stat.S_IREAD)
+    catalog._rm_tree(repo)
+    assert not repo.exists()
+
+
+def test_clone_sha_falls_back_to_full_fetch(tmp_path: Path) -> None:
+    """Pin por SHA num repo local (sem allowReachableSHA1InWant) via fallback full fetch."""
+    repo = tmp_path / "repo"
+    _make_git_repo(repo)
+    import subprocess
+
+    sha = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    dest = tmp_path / "clone"
+    spec = catalog.RepoSpec(name="x", repo=str(repo), tool="x", ref=sha)
+    catalog.clone_or_update(spec, dest=dest)
+    head = subprocess.run(
+        ["git", "-C", str(dest), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert head == sha

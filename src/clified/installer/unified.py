@@ -74,6 +74,7 @@ def _build_receipt(
         venv_path=venv_path,
         catalog_name=ctx.catalog_name,
         install_prefix=str(inst.install_prefix),
+        repo_clone_path=ctx.repo_clone_path,
         artifacts=artifacts,
     )
 
@@ -643,6 +644,10 @@ def main(argv: list[str] | None = None) -> int:
     from clified.cli.output import OutputFormatter
 
     output = OutputFormatter(json_mode=args.json, quiet=args.quiet)
+    if args.json:
+        os.environ["CLIFIED_JSON"] = "1"
+    else:
+        os.environ.pop("CLIFIED_JSON", None)
     logger = Logger()
 
     if args.catalog:
@@ -678,32 +683,41 @@ def main(argv: list[str] | None = None) -> int:
     prefix = Path(args.prefix) if args.prefix else None
     install_results: list[InstallResult] = []
 
-    if effective_tool.lower() == "all":
-        ok, install_results = install_all(
-            workspace=workspace,
-            install_prefix=prefix,
-            python_cmd=args.python,
-            use_venv=args.use_venv,
-            skip_deps=args.skip_deps,
-            skip_models=args.skip_models,
-            force=args.force,
-            retry_attempts=args.retry,
-        )
-    else:
-        result = install_tool(
-            effective_tool,
-            workspace=workspace,
-            action=args.action,
-            install_prefix=prefix,
-            python_cmd=args.python,
-            use_venv=args.use_venv,
-            skip_deps=args.skip_deps,
-            skip_models=args.skip_models,
-            force=args.force,
-            retry_attempts=args.retry,
-        )
-        ok = bool(result)
-        install_results = [result]
+    try:
+        if effective_tool.lower() == "all":
+            ok, install_results = install_all(
+                workspace=workspace,
+                install_prefix=prefix,
+                python_cmd=args.python,
+                use_venv=args.use_venv,
+                skip_deps=args.skip_deps,
+                skip_models=args.skip_models,
+                force=args.force,
+                retry_attempts=args.retry,
+            )
+        else:
+            result = install_tool(
+                effective_tool,
+                workspace=workspace,
+                action=args.action,
+                install_prefix=prefix,
+                python_cmd=args.python,
+                use_venv=args.use_venv,
+                skip_deps=args.skip_deps,
+                skip_models=args.skip_models,
+                force=args.force,
+                retry_attempts=args.retry,
+            )
+            ok = bool(result)
+            install_results = [result]
+    except KeyError as e:
+        msg = str(e.args[0]) if e.args else str(e)
+        logger.error(msg)
+        if args.json:
+            output.error(
+                msg, details={"action": args.action, "tool": effective_tool}
+            )
+        return 1
 
     if args.json:
         output.data(

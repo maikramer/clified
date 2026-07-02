@@ -51,3 +51,18 @@ def test_search_subcommand() -> None:
     with patch("clified.installer.catalog.list_known", return_value=specs):
         with patch("clified.installer.receipts.load_all", return_value={}):
             assert main(["search", "text"]) == 0
+
+
+def test_unknown_tool_delegates_without_traceback(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """`clified <ferramenta-inexistente>` delega e devolve 1 (sem traceback)."""
+    monkeypatch.setenv("CLIFIED_HOME", str(tmp_path / "home"))
+    (tmp_path / "home").mkdir()
+    # sem tools.yaml no cwd → ferramenta desconhecida
+    monkeypatch.chdir(tmp_path)
+    rc = main(["ferramenta-inexistente"])
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "Traceback" not in captured.out
+    assert "Traceback" not in captured.err

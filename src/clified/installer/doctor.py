@@ -13,6 +13,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .registry import ToolKind
@@ -374,7 +375,14 @@ def run_doctor_with_state(
         for item in broken:
             remove(item["name"])
             logger.success(f"Receipt órfão removido: {item['name']}")
+        for path in orphans:
+            try:
+                Path(path).unlink()
+                logger.success(f"Wrapper órfão removido: {path}")
+            except OSError as exc:
+                logger.warn(f"Não foi possível remover {path}: {exc}")
         broken = _broken_receipts()
+        orphans = _orphan_wrappers(bin_dir)
 
     tools_ok = True
     tool_reports: list[dict[str, Any]] = []

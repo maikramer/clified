@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.8.1 — 2026-07
+
+Bug fixes found via end-to-end testing of the 0.8.0 package-manager features.
+
+- **`clified list`** (human table): fix crash (`ValueError: too many values to
+  unpack`) — now uses a proper multi-column table.
+- **`clified search`**: show `(privado)` / `[instalado]` markers in human output
+  (Rich markup escaped so `[instalado]` is no longer swallowed).
+- **`InstallReceipt`**: add `repo_clone_path` field and propagate it from
+  `ReceiptContext` so `update` / `uninstall --purge` can locate the clone.
+- **`clified update`**: record the fresh post-pull commit in the receipt (was
+  overwritten with the stale pre-update commit).
+- **Windows cleanup**: `shutil.rmtree(ignore_errors=True)` silently failed on
+  read-only git object files — replaced with a robust `_rm_tree` (chmod + retry)
+  used by `uninstall --purge` and re-clones over stale sources.
+- **Pinning by commit SHA**: `git fetch --depth 1 origin <sha>` fails on repos
+  without `allowReachableSHA1InWant` (local/bare) — fall back to a full fetch +
+  `git checkout <sha>`.
+- **Detached-HEAD recovery**: a clone left detached (from a previous SHA pin)
+  broke plain `clified get`/`update` (`git pull` on detached HEAD) — now returns
+  to the default branch before pulling (`_current_branch` / `_default_branch`).
+- **`doctor`**: fix `NameError` (`Path` import); `--fix` now also removes orphan
+  wrappers (previously only warned).
+- **`--json` clean output**: suppress Rich panels/STEP/INFO and redirect pip /
+  venv subprocess stdout to stderr so `get`/`install`/`update`/`uninstall` emit
+  pure JSON on stdout (`CLIFIED_JSON` env, `Logger.is_json`).
+- **Legacy `clified <unknown-tool>`**: return a clean error (exit 1) instead of
+  an uncaught `KeyError` traceback; `--json` emits a structured error.
+- Tests: +8 regression tests (receipt `repo_clone_path`, branch helpers, robust
+  `rmtree`, SHA-fetch fallback, `Logger.is_json`, unknown-tool clean error).
+
 ## 0.8.0 — 2026-07
 
 Package manager features: installed-tool state, subcommands, pinning.

@@ -299,6 +299,7 @@ class PythonProjectInstaller(BaseInstaller):
                         "--clear",
                     ],
                     check=True,
+                    stdout=self._subprocess_stdout,
                 )
             except subprocess.CalledProcessError as e:
                 self.logger.exception(f"Falha ao criar venv com uv: {e}")
@@ -307,7 +308,9 @@ class PythonProjectInstaller(BaseInstaller):
             self.logger.step(f"Criando venv em {self.venv_dir}...")
             try:
                 subprocess.run(
-                    [self.python_cmd, "-m", "venv", str(self.venv_dir)], check=True
+                    [self.python_cmd, "-m", "venv", str(self.venv_dir)],
+                    check=True,
+                    stdout=self._subprocess_stdout,
                 )
             except subprocess.CalledProcessError as e:
                 self.logger.exception(f"Falha ao criar venv: {e}")
@@ -352,12 +355,14 @@ class PythonProjectInstaller(BaseInstaller):
                 ],
                 check=True,
                 cwd=_root,
+                stdout=self._subprocess_stdout,
             )
         else:
             subprocess.run(
                 [python, "-m", "pip", "install", "--upgrade", *_PIP_BOOTSTRAP],
                 check=True,
                 cwd=_root,
+                stdout=self._subprocess_stdout,
             )
 
         if self.shared_python is not None:
@@ -367,7 +372,10 @@ class PythonProjectInstaller(BaseInstaller):
             ).is_file():
                 self.logger.info(f"Sincronizando pacote partilhado: {shared_root}")
                 subprocess.run(
-                    [*pip_cmd, *constr, "-e", str(shared_root)], check=True, cwd=_root
+                    [*pip_cmd, *constr, "-e", str(shared_root)],
+                    check=True,
+                    cwd=_root,
+                    stdout=self._subprocess_stdout,
                 )
 
         if not self.skip_pytorch:
@@ -380,6 +388,7 @@ class PythonProjectInstaller(BaseInstaller):
                     [*pip_cmd, *constr, "-e", str(self.project_root)],
                     check=True,
                     cwd=_root,
+                    stdout=self._subprocess_stdout,
                 )
             else:
                 subprocess.run(
@@ -394,6 +403,7 @@ class PythonProjectInstaller(BaseInstaller):
                     ],
                     check=True,
                     cwd=_root,
+                    stdout=self._subprocess_stdout,
                 )
 
         self._write_pth_files()

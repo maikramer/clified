@@ -28,6 +28,7 @@ class InstallReceipt:
     venv_path: str = ""
     catalog_name: str = ""
     install_prefix: str = ""
+    repo_clone_path: str = ""
     artifacts: list[str] = field(default_factory=list)
     installed_at: str = ""
     updated_at: str = ""
@@ -50,6 +51,7 @@ class InstallReceipt:
             venv_path=str(data.get("venv_path", "")),
             catalog_name=str(data.get("catalog_name", "")),
             install_prefix=str(data.get("install_prefix", "")),
+            repo_clone_path=str(data.get("repo_clone_path", "")),
             artifacts=list(data.get("artifacts") or []),
             installed_at=str(data.get("installed_at", "")),
             updated_at=str(data.get("updated_at", "")),
