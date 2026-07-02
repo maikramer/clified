@@ -306,6 +306,140 @@ def run_doctor(
     return all_ok
 
 
+def _broken_receipts() -> list[dict[str, Any]]:
+    from clified.installer.receipts import load_all, verify
+
+    broken = []
+    for name, receipt in load_all().items():
+        status = verify(receipt)
+        if status != "ok":
+            broken.append(
+                {
+                    "name": name,
+                    "cli_name": receipt.cli_name,
+                    "status": status,
+                    "issues": ["receipt broken — artifacts missing"],
+                }
+            )
+    return broken
+
+
+def _orphan_wrappers(bin_dir: Path) -> list[str]:
+    """Wrappers clified cujo venv referenciado não existe."""
+    orphans: list[str] = []
+    if not bin_dir.is_dir():
+        return orphans
+    for path in bin_dir.iterdir():
+        if path.is_dir():
+            continue
+        name = path.name
+        if name.endswith(".cmd"):
+            name = name[:-4]
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if ".venv" not in text and "venv" not in text:
+            continue
+        for line in text.splitlines():
+            if ".venv" in line:
+                import re
+
+                match = re.search(r'["\']([^"\']*\.venv[^"\']*)["\']', line)
+                if match:
+                    venv_part = Path(match.group(1))
+                    if not venv_part.exists() and not (venv_part.parent / ".venv").exists():
+                        orphans.append(str(path))
+                break
+    return orphans
+
+
+def run_doctor_with_state(
+    specs: list[ToolSpec],
+    workspace: WorkspaceConfig | None,
+    *,
+    bin_dir: Path,
+    logger: Logger,
+    output: OutputFormatter,
+    fix: bool = False,
+    tool_filter: str | None = None,
+) -> bool:
+    """Doctor integrado com state file (receipts broken + wrappers órfãos)."""
+    from clified.installer.receipts import load_all, remove
+
+    broken = _broken_receipts()
+    orphans = _orphan_wrappers(bin_dir)
+
+    if fix:
+        for item in broken:
+            remove(item["name"])
+            logger.success(f"Receipt órfão removido: {item['name']}")
+        broken = _broken_receipts()
+
+    tools_ok = True
+    tool_reports: list[dict[str, Any]] = []
+    if workspace is not None and specs:
+        filtered = specs
+        if tool_filter and tool_filter.lower() != "all":
+            filtered = [
+                s for s in specs if s.key == tool_filter or s.cli_name == tool_filter
+            ]
+        if filtered:
+            if output.is_json:
+                tool_reports = [
+                    diagnose_tool(spec, workspace, bin_dir) for spec in filtered
+                ]
+                tools_ok = all(r["status"] == OK for r in tool_reports)
+            else:
+                tools_ok = run_doctor(
+                    filtered,
+                    workspace,
+                    bin_dir=bin_dir,
+                    logger=logger,
+                    output=output,
+                    fix=fix,
+                )
+    elif not specs and not broken and not orphans:
+        if output.is_json:
+            output.data(
+                {
+                    "healthy": True,
+                    "broken_receipts": [],
+                    "orphan_wrappers": [],
+                    "installed_count": len(load_all()),
+                },
+                title="doctor",
+            )
+        else:
+            logger.info("Sem tools.yaml activo — apenas verificação de state.")
+        return not broken and not orphans
+
+    state_ok = not broken and not orphans
+    if output.is_json:
+        payload: dict[str, Any] = {
+            "healthy": tools_ok and state_ok,
+            "broken_receipts": broken,
+            "orphan_wrappers": orphans,
+            "installed_count": len(load_all()),
+        }
+        if tool_reports:
+            payload["tools"] = tool_reports
+            payload["bin_dir"] = str(bin_dir)
+        output.data(payload, title="doctor")
+        return tools_ok and state_ok
+
+    if broken:
+        logger.warning("Receipts broken:")
+        for item in broken:
+            logger.error(f"  {item['name']} ({item['cli_name']})")
+    if orphans:
+        logger.warning("Wrappers órfãos (venv em falta):")
+        for path in orphans:
+            logger.info(f"  {path}")
+
+    return tools_ok and state_ok
+
+
 def _worse(current: str, candidate: str) -> str:
     return current if _RANK[current] >= _RANK[candidate] else candidate
 

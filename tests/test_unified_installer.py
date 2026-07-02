@@ -251,7 +251,7 @@ class TestInstallTool:
         _setup_tools_yaml(clified_root, monkeypatch, content)
         reg.load_registry()
         result = install_tool("missing")
-        assert result is False
+        assert result.ok is False
 
 
 class TestInstallAll:
@@ -269,8 +269,8 @@ class TestInstallAll:
         """)
         _setup_tools_yaml(clified_root, monkeypatch, content)
         reg.load_registry()
-        result = install_all()
-        assert result is False
+        ok, _results = install_all()
+        assert ok is False
 
     @pytest.mark.usefixtures("demo_project")
     def test_restores_env_after_run(
@@ -284,7 +284,12 @@ class TestInstallAll:
             clified_root, monkeypatch, sample_tools_yaml.read_text(encoding="utf-8")
         )
         reg.load_registry()
-        with patch("clified.installer.unified.install_tool", return_value=True):
+        with patch(
+            "clified.installer.unified.install_tool",
+            return_value=__import__(
+                "clified.installer.receipts", fromlist=["InstallResult"]
+            ).InstallResult(tool="demo", action="install", ok=True),
+        ):
             install_all()
         assert "CLIFIED_INSTALL_ALL" not in os.environ
 
@@ -306,7 +311,7 @@ class TestInstallToolActions:
             mock_inst.run_uninstall.return_value = True
             mock_cls.return_value = mock_inst
             result = install_tool("demo", action="uninstall")
-        assert result is True
+        assert result.ok is True
 
     def test_unknown_action_returns_false(
         self,
@@ -336,4 +341,4 @@ class TestInstallToolActions:
             mock_inst = MagicMock()
             mock_cls.return_value = mock_inst
             result = install_tool("demo", action="unknown_action")
-        assert result is False
+        assert result.ok is False

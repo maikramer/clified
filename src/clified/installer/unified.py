@@ -7,16 +7,20 @@ import importlib
 import os
 import platform
 import sys
+import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from clified.cli.output import OutputFormatter
 from clified.core.retry import RetryEngine, RetryPolicy
 from clified.logging import Logger
 from clified.patterns import get_pattern_loader
+from clified.paths import tools_yaml_path
 
 from .bun_installer import BunProjectInstaller
 from .python_installer import PythonProjectInstaller
+from .receipts import InstallReceipt, InstallResult, record_install, remove as remove_receipt
 from .registry import (
     TOOLS,
     ToolKind,
@@ -28,6 +32,50 @@ from .registry import (
     load_registry,
 )
 from .rust_installer import RustProjectInstaller
+
+
+@dataclass
+class ReceiptContext:
+    """Metadados para gravar receipt após instalação."""
+
+    receipt_key: str
+    source: str = "local"  # catalog | repo | local
+    catalog_name: str = ""
+    repo: str = ""
+    ref: str = ""
+    commit: str = ""
+    repo_clone_path: str = ""
+    tools_yaml: str = ""
+
+
+def _build_receipt(
+    spec: ToolSpec,
+    inst: PythonProjectInstaller | RustProjectInstaller | BunProjectInstaller,
+    ctx: ReceiptContext,
+) -> InstallReceipt:
+    venv_path = ""
+    if hasattr(inst, "venv_dir"):
+        venv_path = str(inst.venv_dir)
+    artifacts = inst.collect_artifacts()
+    if venv_path and venv_path not in artifacts:
+        artifacts.append(venv_path)
+    workspace = get_workspace()
+    project_root = str(spec.project_root(workspace.root))
+    ty = ctx.tools_yaml or os.environ.get("CLIFIED_TOOLS", str(tools_yaml_path()))
+    return InstallReceipt(
+        kind=spec.kind.value,
+        cli_name=spec.cli_name,
+        source=ctx.source,
+        repo=ctx.repo,
+        ref=ctx.ref,
+        commit=ctx.commit,
+        tools_yaml=ty,
+        project_root=project_root,
+        venv_path=venv_path,
+        catalog_name=ctx.catalog_name,
+        install_prefix=str(inst.install_prefix),
+        artifacts=artifacts,
+    )
 
 
 def _diagnose_failure(message: str, logger: Logger) -> None:
@@ -261,16 +309,24 @@ def install_tool(
     skip_models: bool = False,
     force: bool = False,
     retry_attempts: int | None = None,
-) -> bool:
+    receipt_ctx: ReceiptContext | None = None,
+) -> InstallResult:
     if workspace is None:
         load_registry()
         workspace = get_workspace()
 
+    t0 = time.perf_counter()
     spec = get_tool(name)
 
     if not spec.exists(workspace.root):
         Logger().error(f"Diretório não encontrado: {spec.project_root(workspace.root)}")
-        return False
+        return InstallResult(
+            tool=name,
+            action=action,
+            ok=False,
+            duration_ms=(time.perf_counter() - t0) * 1000,
+            error="project directory missing",
+        )
 
     inst: PythonProjectInstaller | RustProjectInstaller | BunProjectInstaller
     if spec.kind == ToolKind.PYTHON:
@@ -302,26 +358,53 @@ def install_tool(
         )
     else:
         Logger().error(f"Tipo não suportado: {spec.kind}")
-        return False
-
-    logger = Logger()
-
-    if action in ("install", "update"):
-        # ``update`` refreshes the editable install + deps while reusing the
-        # existing venv (no --clear); a healthy venv is kept, a stale one is
-        # still recreated by ensure_project_venv.
-        if action == "update":
-            os.environ["UV_VENV_CLEAR"] = "0"
-        return _run_with_retry(action, inst.run, logger, max_attempts=retry_attempts)
-    if action == "uninstall":
-        return inst.run_uninstall()
-    if action == "reinstall":
-        return _run_with_retry(
-            "reinstall", inst.run_reinstall, logger, max_attempts=retry_attempts
+        return InstallResult(
+            tool=name,
+            action=action,
+            ok=False,
+            duration_ms=(time.perf_counter() - t0) * 1000,
+            error=f"unsupported kind: {spec.kind}",
         )
 
-    Logger().error(f"Acção desconhecida: {action}")
-    return False
+    logger = Logger()
+    ctx = receipt_ctx or ReceiptContext(receipt_key=spec.key, source="local")
+    ok = False
+
+    if action in ("install", "update"):
+        if action == "update":
+            os.environ["UV_VENV_CLEAR"] = "0"
+        ok = _run_with_retry(action, inst.run, logger, max_attempts=retry_attempts)
+    elif action == "uninstall":
+        ok = inst.run_uninstall()
+        if ok:
+            remove_receipt(ctx.receipt_key)
+    elif action == "reinstall":
+        ok = _run_with_retry(
+            "reinstall", inst.run_reinstall, logger, max_attempts=retry_attempts
+        )
+    else:
+        Logger().error(f"Acção desconhecida: {action}")
+        return InstallResult(
+            tool=name,
+            action=action,
+            ok=False,
+            duration_ms=(time.perf_counter() - t0) * 1000,
+            error=f"unknown action: {action}",
+        )
+
+    duration_ms = (time.perf_counter() - t0) * 1000
+    artifacts = inst.collect_artifacts() if ok else []
+
+    if ok and action in ("install", "update", "reinstall"):
+        record_install(ctx.receipt_key, _build_receipt(spec, inst, ctx))
+
+    return InstallResult(
+        tool=name,
+        action=action,
+        ok=ok,
+        duration_ms=duration_ms,
+        artifacts=artifacts,
+    )
 
 
 def _install_all_sort_key(spec: ToolSpec) -> tuple[int, str]:
@@ -349,7 +432,8 @@ def install_all(
     skip_models: bool = False,
     force: bool = False,
     retry_attempts: int | None = None,
-) -> bool:
+    receipt_ctx_factory: Callable[[ToolSpec], ReceiptContext] | None = None,
+) -> tuple[bool, list[InstallResult]]:
     if workspace is None:
         load_registry()
         workspace = get_workspace()
@@ -358,21 +442,27 @@ def install_all(
     tools = sorted(list_available_tools(workspace.root), key=_install_all_sort_key)
     if not tools:
         logger.error("Nenhuma ferramenta encontrada. Registe projectos em tools.yaml.")
-        return False
+        return False, []
 
     prev = os.environ.get("CLIFIED_INSTALL_ALL")
     prev_uv = os.environ.get("UV_CONCURRENT_BUILDS")
     os.environ["CLIFIED_INSTALL_ALL"] = "1"
     os.environ.setdefault("UV_CONCURRENT_BUILDS", "4")
 
+    install_results: list[InstallResult] = []
     try:
         logger.header(f"Instalando {len(tools)} ferramentas")
         results: dict[str, bool] = {}
 
         for spec in tools:
             logger.header(f"→ {spec.name}")
+            ctx = (
+                receipt_ctx_factory(spec)
+                if receipt_ctx_factory
+                else ReceiptContext(receipt_key=spec.key, source="local")
+            )
             try:
-                ok = install_tool(
+                result = install_tool(
                     spec.key,
                     workspace=workspace,
                     install_prefix=install_prefix,
@@ -382,10 +472,16 @@ def install_all(
                     skip_models=skip_models,
                     force=force,
                     retry_attempts=retry_attempts,
+                    receipt_ctx=ctx,
                 )
+                ok = bool(result)
+                install_results.append(result)
             except Exception as exc:
                 logger.error(f"{spec.name}: {exc}")
                 ok = False
+                install_results.append(
+                    InstallResult(tool=spec.key, action="install", ok=False, error=str(exc))
+                )
             results[spec.name] = ok
 
         logger.header("Resumo")
@@ -395,7 +491,7 @@ def install_all(
             else:
                 logger.error(f"{name}: FALHOU")
 
-        return all(results.values())
+        return all(results.values()), install_results
     finally:
         if prev is None:
             os.environ.pop("CLIFIED_INSTALL_ALL", None)
@@ -512,7 +608,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--sources-dir",
         default=None,
-        help="Onde clonar repositórios remotos (default: ~/.clified/sources)",
+        help="Onde clonar repositórios remotos (default: ~/.config/clified/sources)",
     )
     return parser
 
@@ -553,7 +649,7 @@ def main(argv: list[str] | None = None) -> int:
         return _print_catalog(logger, output)
 
     if args.get:
-        return _run_get(args, logger)
+        return _run_get(args, logger, output)
 
     try:
         load_registry()
@@ -580,9 +676,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     prefix = Path(args.prefix) if args.prefix else None
+    install_results: list[InstallResult] = []
 
     if effective_tool.lower() == "all":
-        ok = install_all(
+        ok, install_results = install_all(
             workspace=workspace,
             install_prefix=prefix,
             python_cmd=args.python,
@@ -593,7 +690,7 @@ def main(argv: list[str] | None = None) -> int:
             retry_attempts=args.retry,
         )
     else:
-        ok = install_tool(
+        result = install_tool(
             effective_tool,
             workspace=workspace,
             action=args.action,
@@ -604,6 +701,18 @@ def main(argv: list[str] | None = None) -> int:
             skip_models=args.skip_models,
             force=args.force,
             retry_attempts=args.retry,
+        )
+        ok = bool(result)
+        install_results = [result]
+
+    if args.json:
+        output.data(
+            {
+                "action": args.action,
+                "ok": ok,
+                "results": [r.to_dict() for r in install_results],
+            },
+            title="install",
         )
 
     return 0 if ok else 1
@@ -616,26 +725,19 @@ def _run_doctor_cli(
     logger: Logger,
     output: OutputFormatter,
 ) -> int:
-    from .doctor import run_doctor
+    from .doctor import run_doctor_with_state
 
     prefix = Path(args.prefix) if args.prefix else None
     base = prefix or Path(os.environ.get("INSTALL_PREFIX", Path.home() / ".local"))
     bin_dir = base / "bin"
-    if args.tool and args.tool.lower() != "all":
-        spec = TOOLS.get(args.tool)
-        if spec is None:
-            logger.error(f"Ferramenta desconhecida: {args.tool}")
-            return 1
-        specs = [spec]
-    else:
-        specs = available
-    ok = run_doctor(
-        specs,
+    ok = run_doctor_with_state(
+        available,
         workspace,
         bin_dir=bin_dir,
         logger=logger,
         output=output,
         fix=args.fix,
+        tool_filter=args.tool,
     )
     return 0 if ok else 1
 
@@ -676,6 +778,7 @@ def _print_catalog(logger: Logger, output: OutputFormatter) -> int:
                         "tools_yaml": s.tools_yaml,
                         "description": s.description,
                         "access": s.access,
+                        "ref": s.ref,
                     }
                     for s in known
                 ],
@@ -695,22 +798,44 @@ def _print_catalog(logger: Logger, output: OutputFormatter) -> int:
     return 0
 
 
-def _run_get(args: argparse.Namespace, logger: Logger) -> int:
+def _resolve_get_spec(tool_arg: str, repo_override: str | None):
     from . import catalog
 
-    tool = args.get
-    if args.repo:
+    catalog_name, ref = catalog.parse_tool_at_ref(tool_arg)
+    if repo_override:
         spec = catalog.RepoSpec(
-            name=tool, repo=args.repo, tool=tool, tools_yaml="tools.yaml"
+            name=catalog_name,
+            repo=repo_override,
+            tool=catalog_name,
+            tools_yaml="tools.yaml",
+            ref=ref,
         )
+        return spec, catalog_name, ref
+    try:
+        spec = catalog.resolve(catalog_name)
+    except KeyError as e:
+        raise KeyError(str(e)) from e
+    if ref:
+        spec = catalog.with_ref(spec, ref)
+    elif spec.ref:
+        ref = spec.ref
+    return spec, catalog_name, ref
+
+
+def _run_get(
+    args: argparse.Namespace, logger: Logger, output: OutputFormatter | None = None
+) -> int:
+    from . import catalog
+
+    out = output or OutputFormatter()
+    try:
+        spec, catalog_name, ref = _resolve_get_spec(args.get, args.repo)
+    except KeyError as e:
+        logger.error(str(e))
+        logger.info("Use --catalog para listar conhecidas ou --repo <url>.")
+        return 1
+    if args.repo:
         logger.info(f"Repo override: {spec.repo}")
-    else:
-        try:
-            spec = catalog.resolve(tool)
-        except KeyError as e:
-            logger.error(str(e))
-            logger.info("Use --catalog para listar conhecidas ou --repo <url>.")
-            return 1
 
     if args.sources_dir:
         os.environ["CLIFIED_SOURCES"] = str(Path(args.sources_dir).expanduser())
@@ -724,6 +849,7 @@ def _run_get(args: argparse.Namespace, logger: Logger) -> int:
     try:
         dest = catalog.clone_or_update(spec, logger=logger)
         tools_yaml = catalog.resolve_tools_yaml(spec, dest)
+        commit = catalog.git_head_commit(dest)
     except (RuntimeError, FileNotFoundError) as e:
         logger.error(str(e))
         return 1
@@ -742,17 +868,71 @@ def _run_get(args: argparse.Namespace, logger: Logger) -> int:
         return 1
 
     prefix = Path(args.prefix) if args.prefix else None
-    ok = install_tool(
-        spec.tool,
-        action=args.action,
-        install_prefix=prefix,
-        python_cmd=args.python,
-        use_venv=args.use_venv,
-        skip_deps=args.skip_deps,
-        skip_models=args.skip_models,
-        force=args.force,
-        retry_attempts=args.retry,
-    )
+    source = "repo" if args.repo else "catalog"
+
+    def _ctx_for(spec_tool: ToolSpec) -> ReceiptContext:
+        return ReceiptContext(
+            receipt_key=spec_tool.key,
+            source=source,
+            catalog_name=catalog_name,
+            repo=spec.repo,
+            ref=ref,
+            commit=commit,
+            repo_clone_path=str(dest),
+            tools_yaml=str(tools_yaml),
+        )
+
+    install_results: list[InstallResult] = []
+    if spec.tool.lower() == "all":
+        ok, install_results = install_all(
+            install_prefix=prefix,
+            python_cmd=args.python,
+            use_venv=args.use_venv,
+            skip_deps=args.skip_deps,
+            skip_models=args.skip_models,
+            force=args.force,
+            retry_attempts=args.retry,
+            receipt_ctx_factory=lambda s: _ctx_for(s),
+        )
+    else:
+        ctx = ReceiptContext(
+            receipt_key=catalog_name,
+            source=source,
+            catalog_name=catalog_name,
+            repo=spec.repo,
+            ref=ref,
+            commit=commit,
+            repo_clone_path=str(dest),
+            tools_yaml=str(tools_yaml),
+        )
+        result = install_tool(
+            spec.tool,
+            action=args.action,
+            install_prefix=prefix,
+            python_cmd=args.python,
+            use_venv=args.use_venv,
+            skip_deps=args.skip_deps,
+            skip_models=args.skip_models,
+            force=args.force,
+            retry_attempts=args.retry,
+            receipt_ctx=ctx,
+        )
+        ok = bool(result)
+        install_results = [result]
+
+    if out.is_json:
+        out.data(
+            {
+                "catalog": catalog_name,
+                "ref": ref,
+                "commit": commit,
+                "action": args.action,
+                "ok": ok,
+                "results": [r.to_dict() for r in install_results],
+            },
+            title="get",
+        )
+
     return 0 if ok else 1
 
 

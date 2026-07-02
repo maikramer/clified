@@ -146,6 +146,13 @@ class BaseInstaller:
 
         self.bin_dir = self._default_bin_dir()
         self.logger = Logger()
+        self.artifacts: list[str] = []
+
+    def track_artifact(self, path: Path) -> None:
+        self.artifacts.append(str(path.expanduser().resolve()))
+
+    def collect_artifacts(self) -> list[str]:
+        return list(self.artifacts)
 
     def _default_bin_dir(self) -> Path:
         return self.install_prefix / "bin"
@@ -321,7 +328,7 @@ class BaseInstaller:
             py = python_path or self.python_cmd
             mod = module_name or self.cli_name
             command = f'"{py}" -m {mod}'
-        return write_cli_wrapper(
+        wrapper = write_cli_wrapper(
             self.bin_dir,
             bin_name,
             command,
@@ -329,6 +336,8 @@ class BaseInstaller:
             project_name=self.project_name,
             logger=self.logger,
         )
+        self.track_artifact(wrapper)
+        return wrapper
 
     def _ensure_windows_user_path(self) -> bool:
         if sys.platform != "win32":

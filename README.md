@@ -101,6 +101,27 @@ my-cli --help
 | [Troubleshooting](docs/troubleshooting.md) | PEP 668, wrong Python on PATH, MCP |
 | [Development](docs/development.md) | Tests, PyPI release, contributing |
 
+## Managing installed tools (`clified` 0.8+)
+
+After installing with `--get` or from a clone, Clified records each tool in
+`~/.config/clified/state.json`. Use the **`clified`** entry point (not
+`clified-install`) for day-to-day package management:
+
+```bash
+clified list                         # installed tools (ok / broken)
+clified list --json
+clified search game                  # search remote catalog
+clified get text2d                   # fetch + install from catalog
+clified get text2d@v1.2.0            # pin branch/tag/commit
+clified update text2d                # git pull + refresh deps
+clified update --all                 # update everything installed
+clified uninstall text2d --purge     # remove tool + clone in sources/
+clified doctor --fix                 # broken receipts + orphan wrappers
+```
+
+`clified-install` and legacy invocations (`clified text2d`, `clified --get denv`)
+remain fully supported.
+
 ## Main commands
 
 ```bash

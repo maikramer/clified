@@ -12,7 +12,7 @@ from clified.logging import Logger
 
 
 class StateStore:
-    """Armazena estado em ``~/.clified/state.json`` (ou path customizado)."""
+    """Armazena estado em ``~/.config/clified/state.json`` (ou path customizado)."""
 
     DEFAULT_STATE: ClassVar[dict[str, Any]] = {
         "metadata": {"version": "1.0", "created_at": None, "updated_at": None},
@@ -20,7 +20,11 @@ class StateStore:
     }
 
     def __init__(self, path: Path | None = None, logger: Logger | None = None) -> None:
-        self.path = path or Path.home() / ".clified" / "state.json"
+        if path is None:
+            from clified.paths import clified_home
+
+            path = clified_home() / "state.json"
+        self.path = path
         self.logger = logger or Logger()
         self._lock = threading.Lock()
         self._state: dict[str, Any] = {}
@@ -109,9 +113,9 @@ _store: StateStore | None = None
 
 
 def get_state_store(
-    path: Path | None = None, logger: Logger | None = None
+    path: Path | None = None, logger: Logger | None = None, *, reset: bool = False
 ) -> StateStore:
     global _store
-    if _store is None:
+    if reset or _store is None or (path is not None and _store.path != path):
         _store = StateStore(path, logger)
     return _store

@@ -110,6 +110,7 @@ class RustProjectInstaller(BaseInstaller):
             if not self.is_windows:
                 dest.chmod(0o755)
             self.logger.success(f"{self.cli_name} instalado em {dest}")
+            self.track_artifact(dest)
             return True
         except Exception as e:
             self.logger.exception(f"Erro ao instalar: {e}")

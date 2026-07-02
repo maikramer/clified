@@ -299,3 +299,46 @@ def test_clone_generic_failure_keeps_stderr(
     msg = str(ei.value)
     assert "git clone falhou" in msg
     assert "something else went wrong" in msg
+
+
+def test_parse_tool_at_ref() -> None:
+    name, ref = catalog.parse_tool_at_ref("text2d@v1.0.0")
+    assert name == "text2d"
+    assert ref == "v1.0.0"
+    name2, ref2 = catalog.parse_tool_at_ref("denv")
+    assert name2 == "denv"
+    assert ref2 == ""
+
+
+def test_with_ref_immutable() -> None:
+    base = catalog.RepoSpec(name="x", repo="https://x.git", tool="x")
+    pinned = catalog.with_ref(base, "main")
+    assert pinned.ref == "main"
+    assert base.ref == ""
+
+
+def test_clone_with_branch_passes_branch_flag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    spec = catalog.RepoSpec(
+        name="x", repo="https://x.git", tool="x", ref="develop"
+    )
+    calls: list[list[str]] = []
+
+    def fake_run(cmd: list[str], **kwargs: object) -> types.SimpleNamespace:
+        calls.append(cmd)
+        if "clone" in cmd:
+            dest_idx = cmd.index(str(tmp_path / "clone")) if str(tmp_path / "clone") in cmd else -1
+            if dest_idx >= 0:
+                Path(cmd[dest_idx]).mkdir(parents=True, exist_ok=True)
+                (Path(cmd[dest_idx]) / ".git").mkdir()
+        return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(catalog.subprocess, "run", fake_run)
+    dest = catalog.clone_or_update(spec, dest=tmp_path / "clone")
+    assert any("--branch" in c and "develop" in c for c in calls)
+
+
+def test_is_commit_sha() -> None:
+    assert catalog._is_commit_sha("abc1234")
+    assert not catalog._is_commit_sha("main")

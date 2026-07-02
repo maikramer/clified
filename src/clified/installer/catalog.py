@@ -17,6 +17,7 @@ git do utilizador; sem acesso, falhamos de forma suave (mensagem clara).
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import time
 import urllib.request
@@ -56,6 +57,37 @@ class RepoSpec:
     tools_yaml: str = "tools.yaml"
     description: str = ""
     access: str = "public"  # "public" | "private" (informational)
+    ref: str = ""
+
+
+_COMMIT_SHA = re.compile(r"^[0-9a-fA-F]{7,40}$")
+
+
+def parse_tool_at_ref(spec: str) -> tuple[str, str]:
+    """Divide ``nome@ref`` no último ``@``."""
+    if "@" not in spec:
+        return spec.strip(), ""
+    name, ref = spec.rsplit("@", 1)
+    return name.strip(), ref.strip()
+
+
+def with_ref(spec: RepoSpec, ref: str) -> RepoSpec:
+    """Devolve cópia de ``spec`` com ``ref`` (imutável)."""
+    if not ref or ref == spec.ref:
+        return spec
+    return RepoSpec(
+        name=spec.name,
+        repo=spec.repo,
+        tool=spec.tool,
+        tools_yaml=spec.tools_yaml,
+        description=spec.description,
+        access=spec.access,
+        ref=ref,
+    )
+
+
+def _is_commit_sha(ref: str) -> bool:
+    return bool(_COMMIT_SHA.fullmatch(ref.strip()))
 
 
 def catalog_path() -> Path:
@@ -191,6 +223,7 @@ def _parse_entry(key: str, data: dict[str, object]) -> RepoSpec:
         msg = f"Entrada de catálogo inválida ({key!r}): falta 'repo'."
         raise ValueError(msg)
     access = str(data.get("access", "public")).strip().lower() or "public"
+    ref = str(data.get("ref", "")).strip()
     return RepoSpec(
         name=key,
         repo=repo,
@@ -198,6 +231,7 @@ def _parse_entry(key: str, data: dict[str, object]) -> RepoSpec:
         tools_yaml=str(data.get("tools_yaml", "tools.yaml")).strip() or "tools.yaml",
         description=str(data.get("description", "")).strip(),
         access=access,
+        ref=ref,
     )
 
 
@@ -242,7 +276,7 @@ def list_known() -> list[RepoSpec]:
 
 
 def sources_dir() -> Path:
-    """Onde os repositórios remotos são clonados (``~/.clified/sources``)."""
+    """Onde os repositórios remotos são clonados (``~/.config/clified/sources``)."""
     env = os.environ.get("CLIFIED_SOURCES", "").strip()
     if env:
         return Path(env).expanduser().resolve()
@@ -262,49 +296,134 @@ def _classify_clone_error(repo: str, stderr: str) -> str:
     return f"git clone falhou para {repo}:\n{stderr.strip()}"
 
 
+def git_head_commit(repo_dir: Path) -> str:
+    """SHA do HEAD no clone local."""
+    result = subprocess.run(
+        ["git", "-C", str(repo_dir), "rev-parse", "HEAD"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return (result.stdout or "").strip() if result.returncode == 0 else ""
+
+
+def _git_run(args: list[str], *, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        args,
+        cwd=str(cwd) if cwd else None,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _clone_shallow(repo: str, dest: Path, ref: str) -> None:
+    if _is_commit_sha(ref):
+        dest.mkdir(parents=True, exist_ok=True)
+        init = _git_run(["git", "init"], cwd=dest)
+        if init.returncode != 0:
+            raise RuntimeError(init.stderr.strip() or "git init falhou")
+        remote = _git_run(["git", "remote", "add", "origin", repo], cwd=dest)
+        if remote.returncode != 0:
+            raise RuntimeError(remote.stderr.strip() or "git remote add falhou")
+        fetch = _git_run(["git", "fetch", "--depth", "1", "origin", ref], cwd=dest)
+        if fetch.returncode != 0:
+            raise RuntimeError(fetch.stderr.strip() or "git fetch falhou")
+        checkout = _git_run(["git", "checkout", "FETCH_HEAD"], cwd=dest)
+        if checkout.returncode != 0:
+            raise RuntimeError(checkout.stderr.strip() or "git checkout falhou")
+        return
+
+    cmd = ["git", "clone", "--depth", "1"]
+    if ref:
+        cmd.extend(["--branch", ref])
+    cmd.extend([repo, str(dest)])
+    result = _git_run(cmd)
+    if result.returncode != 0:
+        msg = _classify_clone_error(repo, result.stderr)
+        raise RuntimeError(msg)
+
+
+def _checkout_ref(dest: Path, repo: str, ref: str) -> None:
+    if not ref:
+        return
+    if _is_commit_sha(ref):
+        fetch = _git_run(["git", "fetch", "--depth", "1", "origin", ref], cwd=dest)
+        if fetch.returncode != 0:
+            raise RuntimeError(fetch.stderr.strip() or "git fetch falhou")
+        checkout = _git_run(["git", "checkout", "FETCH_HEAD"], cwd=dest)
+    else:
+        fetch = _git_run(["git", "fetch", "--depth", "1", "origin", ref], cwd=dest)
+        if fetch.returncode != 0:
+            raise RuntimeError(fetch.stderr.strip() or "git fetch falhou")
+        checkout = _git_run(["git", "checkout", ref], cwd=dest)
+    if checkout.returncode != 0:
+        raise RuntimeError(checkout.stderr.strip() or "git checkout falhou")
+
+
 def clone_or_update(
     spec: RepoSpec,
     dest: Path | None = None,
     *,
     logger: object | None = None,
+    force_ref: bool = False,
 ) -> Path:
-    """Clona (ou actualiza com ``git pull``) o repositório e devolve o caminho.
+    """Clona (ou actualiza) o repositório e devolve o caminho.
 
-    Levanta ``RuntimeError`` se o ``git`` não estiver disponível ou falhar.
-    Erros de auth/acesso produzem mensagem amigável (``_classify_clone_error``).
+    Com ``spec.ref`` usa branch/tag ou SHA (7–40 hex). ``force_ref`` força
+    checkout mesmo quando o clone já existe.
     """
     dest = dest or (sources_dir() / spec.name)
     dest.parent.mkdir(parents=True, exist_ok=True)
+    ref = (spec.ref or "").strip()
 
     if (dest / ".git").is_dir():
+        if ref and force_ref:
+            if logger is not None:
+                _log(logger, f"Checkout {spec.name}@{ref} ({dest})...")
+            _checkout_ref(dest, spec.repo, ref)
+            return dest.resolve()
+        if ref:
+            current = git_head_commit(dest)
+            if logger is not None:
+                _log(logger, f"Actualizando {spec.name}@{ref or 'HEAD'} ({dest})...")
+            if _is_commit_sha(ref):
+                if current.startswith(ref) or ref.startswith(current):
+                    return dest.resolve()
+                _checkout_ref(dest, spec.repo, ref)
+                return dest.resolve()
+            fetch = _git_run(["git", "fetch", "--depth", "1", "origin", ref], cwd=dest)
+            if fetch.returncode != 0:
+                msg = _classify_clone_error(spec.repo, fetch.stderr)
+                raise RuntimeError(msg)
+            pull = _git_run(["git", "pull", "--ff-only", "origin", ref], cwd=dest)
+            if pull.returncode != 0:
+                checkout = _git_run(["git", "checkout", ref], cwd=dest)
+                if checkout.returncode != 0:
+                    msg = _classify_clone_error(spec.repo, pull.stderr or checkout.stderr)
+                    raise RuntimeError(msg)
+            return dest.resolve()
+
         if logger is not None:
             _log(logger, f"Actualizando {spec.name} ({dest})...")
-        result = subprocess.run(
-            ["git", "-C", str(dest), "pull", "--ff-only"],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+        result = _git_run(["git", "-C", str(dest), "pull", "--ff-only"])
         if result.returncode != 0:
             msg = _classify_clone_error(spec.repo, result.stderr)
             raise RuntimeError(msg)
         return dest.resolve()
 
     if logger is not None:
-        _log(logger, f"A clonar {spec.repo} para {dest}...")
+        label = f"{spec.repo}@{ref}" if ref else spec.repo
+        _log(logger, f"A clonar {label} para {dest}...")
     if dest.exists():
-        # Restos de um clone interrompido — limpar antes de clonar de novo.
         _rm_tree(dest)
-    result = subprocess.run(
-        ["git", "clone", "--depth", "1", spec.repo, str(dest)],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        msg = _classify_clone_error(spec.repo, result.stderr)
-        raise RuntimeError(msg)
+    _clone_shallow(spec.repo, dest, ref)
     return dest.resolve()
+
+
+def pull_ff_only(repo_dir: Path) -> subprocess.CompletedProcess[str]:
+    """``git pull --ff-only`` no clone local."""
+    return _git_run(["git", "-C", str(repo_dir), "pull", "--ff-only"])
 
 
 def resolve_tools_yaml(spec: RepoSpec, repo_dir: Path) -> Path:

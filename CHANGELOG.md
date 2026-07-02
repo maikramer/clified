@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.8.0 — 2026-07
+
+Package manager features: installed-tool state, subcommands, pinning.
+
+- **State file** (`~/.config/clified/state.json`): receipts per installed tool
+  (repo, ref, commit, venv, artifacts, timestamps).
+- **Subcommands on `clified`**: `list`, `update`, `uninstall`, `search`, `get`,
+  `install`, `doctor`, `catalog` — `clified-install` unchanged (back-compat).
+- **`clified list`**: installed tools with ok/broken status (distinct from
+  `clified-install --list` which lists tools.yaml registry).
+- **`clified update [tool|--all]`**: git pull / ref checkout + reinstall deps.
+- **`clified uninstall <tool> [--purge]`**: uninstall via receipt; `--purge`
+  removes clone in `sources/`.
+- **Pinning**: `clified get tool@ref` / `--get tool@ref` (branch, tag, or commit SHA).
+- **`clified search <term>`**: filter remote catalog; marks private/installed.
+- **`--json`** on install/update/uninstall/get (machine-readable results).
+- **`doctor`**: broken receipts, orphan wrappers; `--fix` cleans stale state.
+- Bun uninstall removes `node_modules`.
+
 ## 0.7.4 — 2026-07
 
 Bundled catalog snapshot: GameDev monorepo tools.

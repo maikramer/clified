@@ -144,6 +144,10 @@ class BunProjectInstaller(BaseInstaller):
             project_name=self.project_name,
             logger=self.logger,
         )
+        wrapper = self.bin_dir / (
+            f"{self.cli_name}.cmd" if self.is_windows else self.cli_name
+        )
+        self.track_artifact(wrapper)
         return True
 
     def test_installation(self) -> bool:
@@ -177,6 +181,10 @@ class BunProjectInstaller(BaseInstaller):
             if w.exists():
                 w.unlink()
                 self.logger.success(f"Removido: {w}")
+            node_modules = self.project_root / "node_modules"
+            if node_modules.exists():
+                shutil.rmtree(node_modules, ignore_errors=True)
+                self.logger.success(f"Removido: {node_modules}")
             self.logger.success(f"{self.project_name} desinstalado.")
             return True
         except OSError as e:

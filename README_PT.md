@@ -102,6 +102,27 @@ A documentação completa está em **inglês** em [`docs/`](docs/):
 | [Troubleshooting](docs/troubleshooting.md) | PEP 668, Python errado no PATH, MCP |
 | [Development](docs/development.md) | Testes, release PyPI, contribuir |
 
+## Gerir ferramentas instaladas (`clified` 0.8+)
+
+Depois de instalar com `--get` ou a partir de um clone, o Clified regista cada
+ferramenta em `~/.config/clified/state.json`. Usa o entry point **`clified`**
+(não `clified-install`) para gestão do dia-a-dia:
+
+```bash
+clified list                         # instaladas (ok / broken)
+clified list --json
+clified search game                  # procurar no catálogo remoto
+clified get text2d                   # buscar + instalar do catálogo
+clified get text2d@v1.2.0            # pin branch/tag/commit
+clified update text2d                # git pull + refrescar deps
+clified update --all                 # actualizar tudo o que está instalado
+clified uninstall text2d --purge     # remover ferramenta + clone em sources/
+clified doctor --fix                 # receipts broken + wrappers órfãos
+```
+
+`clified-install` e invocações legadas (`clified text2d`, `clified --get denv`)
+continuam totalmente suportadas.
+
 ## Comandos principais
 
 ```bash

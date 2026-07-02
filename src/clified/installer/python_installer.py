@@ -465,6 +465,7 @@ class PythonProjectInstaller(BaseInstaller):
                 project_name=self.project_name,
                 logger=self.logger,
             )
+            self.track_artifact(self.bin_dir / (f"{alias}.cmd" if self.is_windows else alias))
 
     def create_activate_wrapper(self) -> Path | None:
         if self.is_windows or not self.venv_exists:
@@ -476,4 +477,5 @@ class PythonProjectInstaller(BaseInstaller):
             f.write('exec "$@"\n')
         wrapper.chmod(0o755)
         self.logger.success(str(wrapper))
+        self.track_artifact(wrapper)
         return wrapper

@@ -90,11 +90,13 @@ Enable retry on install: `CLIFIED_RETRY=1 clified-install …`
 ```python
 from clified.core.state_store import get_state_store
 
-store = get_state_store("my-cli")
-store.set("last_deploy", {"env": "prod"})
+store = get_state_store()
+store.set("my_namespace", "last_deploy", {"env": "prod"})
 ```
 
-JSON persistence under `~/.config/clified/state/` (via `CLIFIED_HOME`).
+JSON persistence at `~/.config/clified/state.json` (via `CLIFIED_HOME`).
+Installed tools are tracked under the `installed` namespace by the installer
+(see `clified list`).
 
 ## Error diagnosis (patterns)
 

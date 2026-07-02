@@ -2,6 +2,6 @@
 
 import sys
 
-from clified.installer.unified import main
+from clified.installer.cli import main
 
 sys.exit(main())
