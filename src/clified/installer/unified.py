@@ -930,7 +930,7 @@ def _run_get(
             skip_models=args.skip_models,
             force=args.force,
             retry_attempts=args.retry,
-            receipt_ctx_factory=lambda s: _ctx_for(s),
+            receipt_ctx_factory=_ctx_for,
         )
     else:
         try:
