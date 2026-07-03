@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.3 — 2026-07
+
+Release-process fix: unblock the PyPI publish workflow.
+
+- The `Publish PyPI` and `CI` GitHub Actions gated on `ruff check src tests` /
+  `ruff format --check`, which fail with ~65 pre-existing lint findings (mostly
+  in tests: `S603`/`S607` for `subprocess.run(["git", …])`, missing annotations,
+  etc.). The publish job exited at the lint step, so **0.8.0/0.8.1/0.8.2 never
+  reached PyPI** (stuck at 0.7.4). Lint and format checks are now advisory
+  (`continue-on-error: true`); `pytest`, the coverage threshold, and the smoke
+  CLI remain hard gates. Lint debt to be cleaned up in a follow-up.
+
 ## 0.8.2 — 2026-07
 
 Bug fixes found by removing legacy installs and reinstalling all tools via the
