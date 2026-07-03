@@ -8,9 +8,13 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from clified.logging import Logger
 from clified.paths import install_all_constraints_file as _constraints_file
+
+if TYPE_CHECKING:
+    from typing import IO
 
 
 def path_env_contains_dir(path_env: str, bin_dir: Path, *, is_windows: bool) -> bool:
@@ -149,7 +153,7 @@ class BaseInstaller:
         self.artifacts: list[str] = []
 
     @property
-    def _subprocess_stdout(self):
+    def _subprocess_stdout(self) -> IO[str] | None:
         """Alvo de stdout para subprocessos: stderr em modo JSON, None (herdar) caso contrário."""
         return sys.stderr if getattr(self.logger, "is_json", False) else None
 
@@ -302,8 +306,10 @@ class BaseInstaller:
                         [*pip_cmd, *constr, "torch", "torchvision"], check=True, **_kw
                     )
                     return
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.warn(
+                    f"CUDA não utilizável ({e}); a recorrer a PyTorch CPU."
+                )
 
         self.logger.info("Sem CUDA utilizável; PyTorch CPU...")
         subprocess.run(
@@ -352,13 +358,14 @@ class BaseInstaller:
         import winreg
 
         bin_str = str(self.bin_dir.resolve())
-        key = winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER,
-            r"Environment",
-            0,
-            winreg.KEY_READ | winreg.KEY_WRITE,
-        )
+        key = None
         try:
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Environment",
+                0,
+                winreg.KEY_READ | winreg.KEY_WRITE,
+            )
             try:
                 path, typ = winreg.QueryValueEx(key, "Path")
             except FileNotFoundError:
@@ -384,7 +391,8 @@ class BaseInstaller:
             )
             return False
         finally:
-            winreg.CloseKey(key)
+            if key is not None:
+                winreg.CloseKey(key)
 
         try:
             HWND_BROADCAST = 0xFFFF

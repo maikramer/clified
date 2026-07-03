@@ -117,6 +117,10 @@ ignore = [
     "S108",
     "TRY003",
     "EM101",
+    # Testes invocam ``git``/``python`` via ``subprocess.run(["git", ...])`` com
+    # caminho parcial — intencional e espelhado pelo installer/** abaixo.
+    "S603",
+    "S607",
 ]
 "src/clified/installer/**/*.py" = [
     "S603",

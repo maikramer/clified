@@ -301,6 +301,24 @@ def test_clone_generic_failure_keeps_stderr(
     assert "something else went wrong" in msg
 
 
+def test_clone_branch_not_found_not_treated_as_auth(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """B12: 'branch/pathspec not found' não deve disparar a mensagem de acesso
+    negado (apenas repositório inexistente é acesso negado)."""
+    spec = catalog.RepoSpec(
+        name="b", repo="https://github.com/LocatelliSupermercados/x.git", tool="b"
+    )
+    monkeypatch.setattr(
+        catalog.subprocess,
+        "run",
+        _fake_run("fatal: pathspec 'feature-x' did not match any file(s) known to git"),
+    )
+    with pytest.raises(RuntimeError) as ei:
+        catalog.clone_or_update(spec, dest=tmp_path / "b")
+    assert "Acesso negado" not in str(ei.value)
+
+
 def test_parse_tool_at_ref() -> None:
     name, ref = catalog.parse_tool_at_ref("text2d@v1.0.0")
     assert name == "text2d"
@@ -320,22 +338,24 @@ def test_with_ref_immutable() -> None:
 def test_clone_with_branch_passes_branch_flag(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    spec = catalog.RepoSpec(
-        name="x", repo="https://x.git", tool="x", ref="develop"
-    )
+    spec = catalog.RepoSpec(name="x", repo="https://x.git", tool="x", ref="develop")
     calls: list[list[str]] = []
 
     def fake_run(cmd: list[str], **kwargs: object) -> types.SimpleNamespace:
         calls.append(cmd)
         if "clone" in cmd:
-            dest_idx = cmd.index(str(tmp_path / "clone")) if str(tmp_path / "clone") in cmd else -1
+            dest_idx = (
+                cmd.index(str(tmp_path / "clone"))
+                if str(tmp_path / "clone") in cmd
+                else -1
+            )
             if dest_idx >= 0:
                 Path(cmd[dest_idx]).mkdir(parents=True, exist_ok=True)
                 (Path(cmd[dest_idx]) / ".git").mkdir()
         return types.SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(catalog.subprocess, "run", fake_run)
-    dest = catalog.clone_or_update(spec, dest=tmp_path / "clone")
+    catalog.clone_or_update(spec, dest=tmp_path / "clone")
     assert any("--branch" in c and "develop" in c for c in calls)
 
 
@@ -353,14 +373,10 @@ def _make_git_repo(path: Path) -> None:
     subprocess.run(
         ["git", "config", "user.email", "test@clified.dev"], cwd=path, check=True
     )
-    subprocess.run(
-        ["git", "config", "user.name", "Test"], cwd=path, check=True
-    )
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=path, check=True)
     (path / "README.md").write_text("hello", encoding="utf-8")
     subprocess.run(["git", "add", "-A"], cwd=path, check=True)
-    subprocess.run(
-        ["git", "commit", "-q", "-m", "first"], cwd=path, check=True
-    )
+    subprocess.run(["git", "commit", "-q", "-m", "first"], cwd=path, check=True)
 
 
 def test_current_branch_and_default(tmp_path: Path) -> None:
@@ -369,10 +385,8 @@ def test_current_branch_and_default(tmp_path: Path) -> None:
     clone = tmp_path / "clone"
     import subprocess
 
-    subprocess.run(
-        ["git", "clone", "-q", str(repo), str(clone)], check=True
-    )
-    assert catalog._current_branch(clone) == "main"
+    subprocess.run(["git", "clone", "-q", str(repo), str(clone)], check=True)
+    assert catalog.current_branch(clone) == "main"
     assert catalog._default_branch(clone) == "main"
     # detached HEAD after checking out a SHA
     sha = subprocess.run(
@@ -382,13 +396,12 @@ def test_current_branch_and_default(tmp_path: Path) -> None:
         check=True,
     ).stdout.strip()
     subprocess.run(["git", "-C", str(clone), "checkout", "-q", sha], check=True)
-    assert catalog._current_branch(clone) is None
+    assert catalog.current_branch(clone) is None
     assert catalog._default_branch(clone) == "main"
 
 
 def test_rm_tree_removes_readonly_git_objects(tmp_path: Path) -> None:
-    """_rm_tree deve remover ficheiros read-only do git (Windows)."""
-    import os
+    """rm_tree deve remover ficheiros read-only do git (Windows)."""
     import stat
 
     repo = tmp_path / "repo"
@@ -396,8 +409,8 @@ def test_rm_tree_removes_readonly_git_objects(tmp_path: Path) -> None:
     # tornar um object pack read-only (simula permissões git)
     obj = next((repo / ".git" / "objects").rglob("*"))
     if obj.is_file():
-        os.chmod(obj, stat.S_IREAD)
-    catalog._rm_tree(repo)
+        obj.chmod(stat.S_IREAD)
+    catalog.rm_tree(repo)
     assert not repo.exists()
 
 

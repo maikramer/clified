@@ -62,7 +62,8 @@ def _patched_relative_deps(project_root: Path, logger) -> Iterator[None]:  # noq
     """
     pyproject = project_root / "pyproject.toml"
     try:
-        original = pyproject.read_text(encoding="utf-8")
+        with open(pyproject, encoding="utf-8", newline="") as f:
+            original = f.read()
     except (OSError, UnicodeDecodeError):
         yield
         return
@@ -72,15 +73,21 @@ def _patched_relative_deps(project_root: Path, logger) -> Iterator[None]:  # noq
         return
     logger.info("Absolutizando deps file: relativas para o build (uv)")
     try:
-        pyproject.write_text(patched, encoding="utf-8")
+        with open(pyproject, "w", encoding="utf-8", newline="") as f:
+            f.write(patched)
         yield
     finally:
-        pyproject.write_text(original, encoding="utf-8")
+        with open(pyproject, "w", encoding="utf-8", newline="") as f:
+            f.write(original)
 
 
 def _find_site_packages(venv_dir: Path) -> Path | None:
+    # POSIX: lib/pythonX.Y/site-packages ; Windows: Lib/site-packages
     for sp in venv_dir.glob("lib/*/site-packages"):
         return sp
+    win_sp = venv_dir / "Lib" / "site-packages"
+    if win_sp.is_dir():
+        return win_sp
     return None
 
 
@@ -203,7 +210,11 @@ class PythonProjectInstaller(BaseInstaller):
         if not self.ensure_project_venv():
             return False
 
-        self.install_in_venv()
+        try:
+            self.install_in_venv()
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            self.logger.exception(f"Falha na instalação no venv: {e}")
+            return False
         return True
 
     def run_uninstall(self) -> bool:
@@ -328,6 +339,20 @@ class PythonProjectInstaller(BaseInstaller):
             )
             return False
 
+        # Valida o ABI do venv criado (ambas as vias): a via não-uv usa o
+        # ``self.python_cmd`` do sistema, que pode violar o teto ``max_python``.
+        abi = self._read_venv_python_abi()
+        if abi is None or not self._venv_abi_ok(abi):
+            bound = f">= {self.min_python[0]}.{self.min_python[1]}"
+            if self.max_python is not None:
+                bound += f", < {self.max_python[0]}.{self.max_python[1]}"
+            self.logger.error(
+                f"Venv criado com Python {abi} fora dos limites "
+                f"({bound}); instala ``uv`` ou um Python compatível."
+            )
+            shutil.rmtree(self.venv_dir, ignore_errors=True)
+            return False
+
         self.venv_exists = True
         self.logger.success(f"Venv criado: {self.venv_dir}")
         return True
@@ -375,12 +400,15 @@ class PythonProjectInstaller(BaseInstaller):
                 shared_root / "setup.py"
             ).is_file():
                 self.logger.info(f"Sincronizando pacote partilhado: {shared_root}")
-                subprocess.run(
-                    [*pip_cmd, *constr, "-e", str(shared_root)],
-                    check=True,
-                    cwd=_root,
-                    stdout=self._subprocess_stdout,
-                )
+                # O shared_python também pode ter deps ``file:`` relativas que
+                # o ``uv`` rejeita — absolutiza dentro do seu próprio root.
+                with _patched_relative_deps(shared_root, self.logger):
+                    subprocess.run(
+                        [*pip_cmd, *constr, "-e", str(shared_root)],
+                        check=True,
+                        cwd=_root,
+                        stdout=self._subprocess_stdout,
+                    )
 
         if not self.skip_pytorch:
             self.install_pytorch(pip_cmd, cwd=self.project_root)
@@ -479,7 +507,9 @@ class PythonProjectInstaller(BaseInstaller):
                 project_name=self.project_name,
                 logger=self.logger,
             )
-            self.track_artifact(self.bin_dir / (f"{alias}.cmd" if self.is_windows else alias))
+            self.track_artifact(
+                self.bin_dir / (f"{alias}.cmd" if self.is_windows else alias)
+            )
 
     def create_activate_wrapper(self) -> Path | None:
         if self.is_windows or not self.venv_exists:

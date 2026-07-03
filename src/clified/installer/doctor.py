@@ -10,6 +10,7 @@ leaving the user to reverse-engineer it from an install traceback.
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import sys
@@ -20,8 +21,6 @@ from .registry import ToolKind
 from .requires_python import bounds_from_pyproject
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from clified.cli.output import OutputFormatter
     from clified.logging import Logger
 
@@ -326,36 +325,43 @@ def _broken_receipts() -> list[dict[str, Any]]:
 
 
 def _orphan_wrappers(bin_dir: Path) -> list[str]:
-    """Wrappers clified cujo venv referenciado não existe."""
+    """Wrappers clified cujo venv referenciado não existe.
+
+    Só considera ficheiros gerados pelo clified (marcador ``gerado por clified``)
+    para não tocar em scripts alheios do utilizador presentes em ``bin_dir``.
+    """
     orphans: list[str] = []
     if not bin_dir.is_dir():
         return orphans
     for path in bin_dir.iterdir():
         if path.is_dir():
             continue
-        name = path.name
-        if name.endswith(".cmd"):
-            name = name[:-4]
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        if ".venv" not in text and "venv" not in text:
+        if "gerado por clified" not in text or ".venv" not in text:
             continue
         for line in text.splitlines():
             if ".venv" in line:
-                import re
-
                 match = re.search(r'["\']([^"\']*\.venv[^"\']*)["\']', line)
                 if match:
                     venv_part = Path(match.group(1))
-                    if not venv_part.exists() and not (venv_part.parent / ".venv").exists():
+                    if (
+                        not venv_part.exists()
+                        and not (venv_part.parent / ".venv").exists()
+                    ):
                         orphans.append(str(path))
                 break
     return orphans
 
 
-def run_doctor_with_state(
+def _norm_tool(name: str) -> str:
+    """Normaliza nome de ferramenta para matching (lowercase, sem ``-``/``_``)."""
+    return name.strip().lower().replace("-", "").replace("_", "")
+
+
+def run_doctor_with_state(  # noqa: PLR0915
     specs: list[ToolSpec],
     workspace: WorkspaceConfig | None,
     *,
@@ -364,22 +370,39 @@ def run_doctor_with_state(
     output: OutputFormatter,
     fix: bool = False,
     tool_filter: str | None = None,
+    yes: bool = False,
 ) -> bool:
     """Doctor integrado com state file (receipts broken + wrappers órfãos)."""
     from clified.installer.receipts import load_all, remove
 
     broken = _broken_receipts()
     orphans = _orphan_wrappers(bin_dir)
+    actions: list[dict[str, Any]] = []
+
+    # ``--fix`` é destrutivo (remove receipts e wrappers); em modo interactivo
+    # sem ``--yes`` pede confirmação. Em pipe (não-tty) o ``--yes`` é implícito.
+    if fix and (broken or orphans) and not yes and sys.stdin.isatty():
+        print("doctor --fix vai remover:")  # noqa: T201
+        for item in broken:
+            print(f"  receipt: {item['name']}")  # noqa: T201
+        for p in orphans:
+            print(f"  wrapper: {p}")  # noqa: T201
+        ans = input("Continuar? [y/N] ").strip().lower()
+        if ans not in ("y", "yes", "s", "sim"):
+            logger.warn("--fix cancelado pelo utilizador.")
+            fix = False
 
     if fix:
         for item in broken:
             remove(item["name"])
             logger.success(f"Receipt órfão removido: {item['name']}")
+            actions.append({"type": "remove_receipt", "name": item["name"]})
         for path in orphans:
             try:
                 Path(path).unlink()
                 logger.success(f"Wrapper órfão removido: {path}")
-            except OSError as exc:
+                actions.append({"type": "remove_wrapper", "path": path})
+            except OSError as exc:  # noqa: PERF203
                 logger.warn(f"Não foi possível remover {path}: {exc}")
         broken = _broken_receipts()
         orphans = _orphan_wrappers(bin_dir)
@@ -389,8 +412,11 @@ def run_doctor_with_state(
     if workspace is not None and specs:
         filtered = specs
         if tool_filter and tool_filter.lower() != "all":
+            tf = _norm_tool(tool_filter)
             filtered = [
-                s for s in specs if s.key == tool_filter or s.cli_name == tool_filter
+                s
+                for s in specs
+                if _norm_tool(s.key) == tf or _norm_tool(s.cli_name) == tf
             ]
         if filtered:
             if output.is_json:
@@ -409,27 +435,29 @@ def run_doctor_with_state(
                 )
     elif not specs and not broken and not orphans:
         if output.is_json:
-            output.data(
-                {
-                    "healthy": True,
-                    "broken_receipts": [],
-                    "orphan_wrappers": [],
-                    "installed_count": len(load_all()),
-                },
-                title="doctor",
-            )
+            payload: dict[str, Any] = {
+                "healthy": True,
+                "broken_receipts": [],
+                "orphan_wrappers": [],
+                "installed_count": len(load_all()),
+            }
+            if actions:
+                payload["actions"] = actions
+            output.data(payload, title="doctor")
         else:
             logger.info("Sem tools.yaml activo — apenas verificação de state.")
         return not broken and not orphans
 
     state_ok = not broken and not orphans
     if output.is_json:
-        payload: dict[str, Any] = {
+        payload = {
             "healthy": tools_ok and state_ok,
             "broken_receipts": broken,
             "orphan_wrappers": orphans,
             "installed_count": len(load_all()),
         }
+        if actions:
+            payload["actions"] = actions
         if tool_reports:
             payload["tools"] = tool_reports
             payload["bin_dir"] = str(bin_dir)

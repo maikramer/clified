@@ -168,41 +168,48 @@ def _parse_local_packages(raw: Any) -> tuple[LocalPackage, ...]:
 
 
 def _parse_tool(key: str, data: dict[str, Any]) -> ToolSpec:
-    kind_str = str(data.get("kind", "python")).lower()
-    kind = ToolKind(kind_str)
+    try:
+        kind_str = str(data.get("kind", "python")).lower()
+        kind = ToolKind(kind_str)
 
-    return ToolSpec(
-        key=key,
-        name=str(data.get("name", key)),
-        kind=kind,
-        folder=str(data.get("folder", key)),
-        cli_name=str(data.get("cli_name", key)),
-        description=str(data.get("description", "")),
-        cargo_bin_name=str(data.get("cargo_bin_name", "")),
-        python_module=str(data.get("python_module", "")),
-        min_python=_parse_python_version(data.get("min_python"), (3, 10)),
-        max_python=_parse_python_version(data["max_python"], (99, 99))
-        if data.get("max_python") is not None
-        else None,
-        extra_aliases=tuple(str(a) for a in data.get("extra_aliases") or ()),
-        needs_pytorch=bool(data.get("needs_pytorch", False)),
-        install_before=tuple(str(k) for k in data.get("install_before") or ()),
-        cross_deps=tuple(str(k) for k in data.get("cross_deps") or ()),
-        local_packages=_parse_local_packages(data.get("local_packages")),
-        post_install=str(data.get("post_install", "")).strip(),
-        custom_install=str(data.get("custom_install", "")).strip(),
-        install_before_mode=str(data.get("install_before_mode", "")).strip().lower(),
-        install_order=int(data["install_order"])
-        if data.get("install_order") is not None
-        else None,
-        bun_cli_script=str(data.get("bun_cli_script", "")).strip(),
-        bun_build_command=str(data.get("bun_build_command", "build")).strip()
-        or "build",
-        bun_install_args=tuple(
-            str(a)
-            for a in data.get("bun_install_args") or ("install", "--frozen-lockfile")
-        ),
-    )
+        return ToolSpec(
+            key=key,
+            name=str(data.get("name", key)),
+            kind=kind,
+            folder=str(data.get("folder", key)),
+            cli_name=str(data.get("cli_name", key)),
+            description=str(data.get("description", "")),
+            cargo_bin_name=str(data.get("cargo_bin_name", "")),
+            python_module=str(data.get("python_module", "")),
+            min_python=_parse_python_version(data.get("min_python"), (3, 10)),
+            max_python=_parse_python_version(data["max_python"], (99, 99))
+            if data.get("max_python") is not None
+            else None,
+            extra_aliases=tuple(str(a) for a in data.get("extra_aliases") or ()),
+            needs_pytorch=bool(data.get("needs_pytorch", False)),
+            install_before=tuple(str(k) for k in data.get("install_before") or ()),
+            cross_deps=tuple(str(k) for k in data.get("cross_deps") or ()),
+            local_packages=_parse_local_packages(data.get("local_packages")),
+            post_install=str(data.get("post_install", "")).strip(),
+            custom_install=str(data.get("custom_install", "")).strip(),
+            install_before_mode=str(data.get("install_before_mode", ""))
+            .strip()
+            .lower(),
+            install_order=int(data["install_order"])
+            if data.get("install_order") is not None
+            else None,
+            bun_cli_script=str(data.get("bun_cli_script", "")).strip(),
+            bun_build_command=str(data.get("bun_build_command", "build")).strip()
+            or "build",
+            bun_install_args=tuple(
+                str(a)
+                for a in data.get("bun_install_args")
+                or ("install", "--frozen-lockfile")
+            ),
+        )
+    except ValueError as e:
+        msg = f"tools.yaml: ferramenta {key!r} inválida: {e}"
+        raise ValueError(msg) from e
 
 
 def load_registry(

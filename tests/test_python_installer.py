@@ -394,3 +394,10 @@ class TestPythonProjectInstallerActivateWrapper:
             )
         assert inst.venv_exists is False
         assert inst.create_activate_wrapper() is None
+
+
+def test_find_site_packages_windows_venv_layout(tmp_path: Path) -> None:
+    """A1: venvs Windows usam ``Lib/site-packages`` (sem subdir de versão)."""
+    win_sp = tmp_path / "Lib" / "site-packages"
+    win_sp.mkdir(parents=True)
+    assert _find_site_packages(tmp_path) == win_sp

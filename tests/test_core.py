@@ -68,3 +68,45 @@ def test_circuit_breaker_opens_after_failures() -> None:
 
     with pytest.raises(CircuitOpenError):
         cb.call(lambda: None)
+
+
+def test_retry_does_not_mask_false_return_as_success() -> None:
+    """B1: um installer que devolve ``False`` (falha permanente) não deve ser
+    reportado como sucesso pelo retry — senão gravaria receipt de install falhada."""
+    from unittest.mock import patch
+
+    from clified.installer.unified import _run_with_retry
+    from clified.logging import Logger
+
+    def fails() -> bool:
+        return False
+
+    assert _run_with_retry("install", fails, Logger(), max_attempts=1) is False
+    with patch("clified.core.retry.time.sleep"):
+        assert _run_with_retry("install", fails, Logger(), max_attempts=3) is False
+
+
+def test_retry_does_not_retry_file_not_found() -> None:
+    """B5: ``FileNotFoundError`` é permanente — não deve haver retry."""
+    calls = {"n": 0}
+
+    def boom() -> str:
+        calls["n"] += 1
+        raise FileNotFoundError("nope")
+
+    result = RetryEngine(policy=RetryPolicy(max_attempts=3, base_delay=0.01)).execute(
+        boom
+    )
+    assert result.success is False
+    assert calls["n"] == 1
+
+
+def test_retry_delay_respects_max_after_jitter() -> None:
+    """B13: o jitter não deve fazer o delay exceder ``max_delay``."""
+    engine = RetryEngine(
+        policy=RetryPolicy(
+            max_attempts=5, base_delay=100.0, max_delay=10.0, jitter=True
+        )
+    )
+    for attempt in range(1, 6):
+        assert engine.calculate_delay(attempt) <= 10.0

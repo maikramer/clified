@@ -5,6 +5,11 @@ from __future__ import annotations
 import contextlib
 import os
 import sys
+import traceback
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import IO
 
 
 def _configure_stdio_utf8() -> None:
@@ -56,7 +61,7 @@ class Logger:
         """Console Rich interno, ou ``None`` no fallback ANSI."""
         return self._console
 
-    def _plain(self, label: str, msg: str, *, stream=None) -> None:
+    def _plain(self, label: str, msg: str, *, stream: IO[str] | None = None) -> None:
         """Fallback sem Rich: escreve linha prefixada (texto simples)."""
         line = f"{label} {msg}\n" if label else f"{msg}\n"
         out = stream or sys.stdout
@@ -105,8 +110,6 @@ class Logger:
         falha; delega em :meth:`error` e anexa o traceback activo quando existir.
         """
         self.error(msg)
-        import traceback
-
         tb = traceback.format_exc()
         if not tb or tb == "NoneType: None\n":
             return

@@ -56,8 +56,12 @@ def test_exception_emits_error_and_traceback(
     plain_logger: Logger, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """logger.exception existe (chamado por bun/rust/python/base) — emite ERROR + traceback."""
-    try:
+
+    def _raise() -> None:
         raise ValueError("boom-detail")
+
+    try:
+        _raise()
     except ValueError:
         plain_logger.exception("build falhou")
     captured = capsys.readouterr()

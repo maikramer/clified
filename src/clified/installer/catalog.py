@@ -21,6 +21,7 @@ import re
 import subprocess
 import time
 import urllib.request
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -43,8 +44,11 @@ _AUTH_FAILURE_MARKERS = (
     "could not read from remote repository",
     "remote: invalid username",
     "repository not found",
-    "not found",
 )
+# ``fatal: repository '<url>' not found`` (com a URL entre aspas) não contém o
+# substring ``"repository not found"`` — casamos via regex para não recorrer ao
+# ``"not found"`` genérico (que colidiria com "branch not found", "path not found").
+_REPO_NOT_FOUND_RE = re.compile(r"repository\s+'[^']*'\s+not found")
 
 
 @dataclass(frozen=True)
@@ -286,7 +290,9 @@ def sources_dir() -> Path:
 def _classify_clone_error(repo: str, stderr: str) -> str:
     """Mensagem amigável para falhas de auth/acesso; stderr cru nos restantes."""
     s = (stderr or "").lower()
-    if any(marker in s for marker in _AUTH_FAILURE_MARKERS):
+    if any(
+        marker in s for marker in _AUTH_FAILURE_MARKERS
+    ) or _REPO_NOT_FOUND_RE.search(s):
         return (
             f"Acesso negado ou repositório inacessível: {repo}\n"
             "Se for privada, requer permissão de leitura no git da organização "
@@ -307,7 +313,7 @@ def git_head_commit(repo_dir: Path) -> str:
     return (result.stdout or "").strip() if result.returncode == 0 else ""
 
 
-def _current_branch(repo_dir: Path) -> str | None:
+def current_branch(repo_dir: Path) -> str | None:
     """Branch actual (None se em detached HEAD)."""
     r = _git_run(["git", "symbolic-ref", "-q", "--short", "HEAD"], cwd=repo_dir)
     if r.returncode == 0 and r.stdout.strip():
@@ -340,7 +346,9 @@ def _default_branch(repo_dir: Path) -> str:
     return "main"
 
 
-def _git_run(args: list[str], *, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+def _git_run(
+    args: list[str], *, cwd: Path | None = None
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         args,
         cwd=str(cwd) if cwd else None,
@@ -395,15 +403,18 @@ def _checkout_ref(dest: Path, repo: str, ref: str) -> None:
             if fetch.returncode != 0:
                 fetch = _git_run(["git", "fetch", "origin"], cwd=dest)
                 if fetch.returncode != 0:
-                    raise RuntimeError(fetch.stderr.strip() or "git fetch falhou")
+                    msg = fetch.stderr.strip() or f"git fetch falhou para {repo}"
+                    raise RuntimeError(msg)
         checkout = _git_run(["git", "checkout", ref], cwd=dest)
     else:
         fetch = _git_run(["git", "fetch", "--depth", "1", "origin", ref], cwd=dest)
         if fetch.returncode != 0:
-            raise RuntimeError(fetch.stderr.strip() or "git fetch falhou")
+            msg = fetch.stderr.strip() or f"git fetch falhou para {repo}"
+            raise RuntimeError(msg)
         checkout = _git_run(["git", "checkout", ref], cwd=dest)
     if checkout.returncode != 0:
-        raise RuntimeError(checkout.stderr.strip() or "git checkout falhou")
+        msg = checkout.stderr.strip() or f"git checkout falhou para {repo}@{ref}"
+        raise RuntimeError(msg)
 
 
 def clone_or_update(
@@ -415,7 +426,7 @@ def clone_or_update(
 ) -> Path:
     """Clona (ou actualiza) o repositório e devolve o caminho.
 
-    Com ``spec.ref`` usa branch/tag ou SHA (7–40 hex). ``force_ref`` força
+    Com ``spec.ref`` usa branch/tag ou SHA (7-40 hex). ``force_ref`` força
     checkout mesmo quando o clone já existe.
     """
     dest = dest or (sources_dir() / spec.name)
@@ -445,13 +456,15 @@ def clone_or_update(
             if pull.returncode != 0:
                 checkout = _git_run(["git", "checkout", ref], cwd=dest)
                 if checkout.returncode != 0:
-                    msg = _classify_clone_error(spec.repo, pull.stderr or checkout.stderr)
+                    msg = _classify_clone_error(
+                        spec.repo, pull.stderr or checkout.stderr
+                    )
                     raise RuntimeError(msg)
             return dest.resolve()
 
         if logger is not None:
             _log(logger, f"Actualizando {spec.name} ({dest})...")
-        branch = _current_branch(dest)
+        branch = current_branch(dest)
         if branch is None:
             # detached HEAD (ex.: pin de SHA anterior) — voltar ao branch por omissão
             branch = _default_branch(dest)
@@ -470,7 +483,7 @@ def clone_or_update(
         label = f"{spec.repo}@{ref}" if ref else spec.repo
         _log(logger, f"A clonar {label} para {dest}...")
     if dest.exists():
-        _rm_tree(dest)
+        rm_tree(dest)
     _clone_shallow(spec.repo, dest, ref)
     return dest.resolve()
 
@@ -502,25 +515,22 @@ def _log(logger: object, msg: str) -> None:
         info(msg)
 
 
-def _rm_tree(path: Path) -> None:
+def rm_tree(path: Path) -> None:
     """Remove árvore robustamente (ficheiros read-only do git no Windows)."""
     import shutil
     import stat
 
-    def _onexc(func, p, _exc) -> None:
-        try:
-            os.chmod(p, stat.S_IWRITE)
-        except OSError:
-            pass
-        try:
+    def _onexc(func: object, p: str | Path, _exc: object) -> None:
+        with suppress(OSError):
+            Path(p).chmod(stat.S_IWRITE)
+        with suppress(OSError):
             func(p)
-        except OSError:
-            pass
 
     try:
         shutil.rmtree(path, onexc=_onexc)
     except TypeError:  # Python < 3.12 (sem onexc)
-        def _onerror(func, p, _exc_info) -> None:
+
+        def _onerror(func: object, p: str | Path, _exc_info: object) -> None:
             _onexc(func, p, None)
 
         shutil.rmtree(path, onerror=_onerror)

@@ -5,10 +5,13 @@ from __future__ import annotations
 import json
 import threading
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from clified.logging import Logger
+from clified.paths import clified_home
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class StateStore:
@@ -21,8 +24,6 @@ class StateStore:
 
     def __init__(self, path: Path | None = None, logger: Logger | None = None) -> None:
         if path is None:
-            from clified.paths import clified_home
-
             path = clified_home() / "state.json"
         self.path = path
         self.logger = logger or Logger()
@@ -110,6 +111,12 @@ class StateStore:
 
 
 _store: StateStore | None = None
+
+
+def reset_singleton() -> None:
+    """Limpa o singleton do StateStore (para testes / reset entre execuções)."""
+    global _store
+    _store = None
 
 
 def get_state_store(

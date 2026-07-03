@@ -11,18 +11,19 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from clified.cli.output import OutputFormatter
 from clified.core.retry import RetryEngine, RetryPolicy
 from clified.logging import Logger
+from clified.paths import tools_yaml_path, version
 from clified.patterns import get_pattern_loader
-from clified.paths import tools_yaml_path
 
 from .bun_installer import BunProjectInstaller
 from .python_installer import PythonProjectInstaller
-from .receipts import InstallReceipt, InstallResult, record_install, remove as remove_receipt
+from .receipts import InstallReceipt, InstallResult, record_install
+from .receipts import remove as remove_receipt
 from .registry import (
-    TOOLS,
     ToolKind,
     ToolSpec,
     WorkspaceConfig,
@@ -32,6 +33,9 @@ from .registry import (
     load_registry,
 )
 from .rust_installer import RustProjectInstaller
+
+if TYPE_CHECKING:
+    from .catalog import RepoSpec
 
 
 @dataclass
@@ -116,7 +120,10 @@ def _run_with_retry(
     result = engine.execute(func)
     if not result.success and result.final_exception:
         _diagnose_failure(str(result.final_exception), logger)
-    return result.success
+    # ``RetryEngine.execute`` só levanta exceções; um install que devolve ``False``
+    # (falha permanente) fica em ``result.result`` — sem isto seria mascarado como
+    # sucesso e o receipt seria gravado para uma instalação falhada.
+    return result.success and bool(result.result)
 
 
 def _run_hook(hook: str, installer: PythonProjectInstaller) -> bool:
@@ -372,9 +379,16 @@ def install_tool(
     ok = False
 
     if action in ("install", "update"):
-        if action == "update":
-            os.environ["UV_VENV_CLEAR"] = "0"
-        ok = _run_with_retry(action, inst.run, logger, max_attempts=retry_attempts)
+        saved_clear = os.environ.get("UV_VENV_CLEAR")
+        try:
+            if action == "update":
+                os.environ["UV_VENV_CLEAR"] = "0"
+            ok = _run_with_retry(action, inst.run, logger, max_attempts=retry_attempts)
+        finally:
+            if saved_clear is None:
+                os.environ.pop("UV_VENV_CLEAR", None)
+            else:
+                os.environ["UV_VENV_CLEAR"] = saved_clear
     elif action == "uninstall":
         ok = inst.run_uninstall()
         if ok:
@@ -481,9 +495,11 @@ def install_all(
                 logger.error(f"{spec.name}: {exc}")
                 ok = False
                 install_results.append(
-                    InstallResult(tool=spec.key, action="install", ok=False, error=str(exc))
+                    InstallResult(
+                        tool=spec.key, action="install", ok=False, error=str(exc)
+                    )
                 )
-            results[spec.name] = ok
+            results[spec.key] = ok
 
         logger.header("Resumo")
         for name, ok in results.items():
@@ -515,6 +531,11 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=_build_static_epilog(),
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {version()}",
     )
     parser.add_argument(
         "tool",
@@ -658,8 +679,10 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         load_registry()
-    except FileNotFoundError as e:
+    except (FileNotFoundError, ValueError) as e:
         logger.error(str(e))
+        if args.json:
+            output.error(str(e))
         return 1
 
     workspace = get_workspace()
@@ -714,9 +737,7 @@ def main(argv: list[str] | None = None) -> int:
         msg = str(e.args[0]) if e.args else str(e)
         logger.error(msg)
         if args.json:
-            output.error(
-                msg, details={"action": args.action, "tool": effective_tool}
-            )
+            output.error(msg, details={"action": args.action, "tool": effective_tool})
         return 1
 
     if args.json:
@@ -752,6 +773,7 @@ def _run_doctor_cli(
         output=output,
         fix=args.fix,
         tool_filter=args.tool,
+        yes=getattr(args, "yes", False),
     )
     return 0 if ok else 1
 
@@ -812,7 +834,9 @@ def _print_catalog(logger: Logger, output: OutputFormatter) -> int:
     return 0
 
 
-def _resolve_get_spec(tool_arg: str, repo_override: str | None):
+def _resolve_get_spec(
+    tool_arg: str, repo_override: str | None
+) -> tuple[RepoSpec, str, str]:
     from . import catalog
 
     catalog_name, ref = catalog.parse_tool_at_ref(tool_arg)
@@ -845,7 +869,7 @@ def _run_get(
     try:
         spec, catalog_name, ref = _resolve_get_spec(args.get, args.repo)
     except KeyError as e:
-        logger.error(str(e))
+        out.error(str(e))
         logger.info("Use --catalog para listar conhecidas ou --repo <url>.")
         return 1
     if args.repo:
@@ -865,7 +889,7 @@ def _run_get(
         tools_yaml = catalog.resolve_tools_yaml(spec, dest)
         commit = catalog.git_head_commit(dest)
     except (RuntimeError, FileNotFoundError) as e:
-        logger.error(str(e))
+        out.error(str(e))
         return 1
 
     logger.success(f"Repo pronto: {dest}")
@@ -878,7 +902,7 @@ def _run_get(
     try:
         load_registry()
     except FileNotFoundError as e:
-        logger.error(str(e))
+        out.error(str(e))
         return 1
 
     prefix = Path(args.prefix) if args.prefix else None
@@ -909,8 +933,14 @@ def _run_get(
             receipt_ctx_factory=lambda s: _ctx_for(s),
         )
     else:
+        try:
+            from .registry import get_tool
+
+            rkey = get_tool(spec.tool).key
+        except KeyError:
+            rkey = catalog_name
         ctx = ReceiptContext(
-            receipt_key=catalog_name,
+            receipt_key=rkey,
             source=source,
             catalog_name=catalog_name,
             repo=spec.repo,

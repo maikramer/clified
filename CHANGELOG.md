@@ -1,5 +1,60 @@
 # Changelog
 
+## 0.8.4 — 2026-07
+
+Code-review sweep + lint-debt cleanup. All ~65 pre-existing Ruff findings fixed,
+strict `ruff check`/`ruff format --check` re-enabled as hard gates in `ci.yml`
+and `publish.yml`, and regression tests added for the main fixes.
+
+Bug fixes (full code review of `installer/`, `core/`, `cli`, `hooks`):
+
+- **Retry masked permanent failures as success**: `_run_with_retry` returned
+  `result.success` even when the installer returned `False`, so a failed install
+  could be recorded as a valid receipt. Now `result.success and bool(result.result)`.
+- **Retry retried non-transient errors**: `FileNotFoundError`/`PermissionError` are
+  now non-retryable; retry jitter is capped by `max_delay` (could previously exceed
+  it after jitter was applied).
+- **`install_all` keyed by `spec.key`** (not `spec.name`) — prevents receipt
+  collisions for tools sharing a display name.
+- **Single-`get` receipt key** resolved to the canonical tool key, consistent with
+  `install`/`update`.
+- **`UV_VENV_CLEAR` leaked** into the environment after `update`; now saved/restored.
+- **`tools.yaml` parse errors** (`ValueError`) now carry the offending tool key and
+  are caught at the CLI top level (clean message, no traceback) in both `cli.py`
+  and `unified.py`.
+- **`InstallReceipt.from_dict`** with a corrupt non-list `artifacts` (string/int)
+  no longer char-splits or raises; falls back to `[]`.
+- **Windows venv site-packages**: `_find_site_packages` now also recognizes the
+  `Lib/site-packages` layout. `pyproject.toml` relative-dep patching preserves
+  original line endings (uses `open(newline="")`).
+- **`venv` ABI bounds** (`max_python`) verified after both uv and non-uv venv
+  creation.
+- **PyTorch CUDA detection** logs the failure instead of a silent CPU fallback.
+- **Bun installer**: `assert`-based flow control replaced with explicit None
+  checks; Windows `.cmd` wrappers invoked via `cmd /c`.
+- **`base` (Windows PATH)**: `winreg.OpenKey` moved inside the `try` so
+  `CloseKey` always runs.
+- **`clified --version`** works in the new subcommand dispatcher (early return).
+- **`clified install` with no tool and no `--all`** now errors explicitly instead
+  of installing nothing silently.
+- **`uninstall`** no longer removes the receipt when the uninstall action reports
+  failure; `--purge` preserves a clone shared by other active receipts.
+- **`doctor --fix`** is safer: `_orphan_wrappers` only touches files carrying the
+  `gerado por clified` marker (won't delete user scripts); interactive
+  confirmation prompt when a tty is present; JSON output records the actions
+  taken; `--tool` filter is case/`-`/`_`-insensitive.
+- **Git error classification**: generic `"not found"` removed from auth markers;
+  a regex now matches `repository '…' not found` precisely, so a missing branch
+  is no longer reported as "Acesso negado".
+- **Catalog**: `_rm_tree`/`_current_branch` promoted to public `rm_tree`/
+  `current_branch`; relative-dep helper uses `Path.chmod` + `contextlib.suppress`.
+- **JSON error paths**: `cli`/`unified` error reporting routed through
+  `output.error(...)` so `--json` emits structured errors instead of plain logs.
+
+Regression tests: retry (B1/B5/B13), Windows site-packages (A1), corrupt
+`artifacts` (B8), `--version` and `install` no-operand (C1/C12), `doctor`
+orphan-marker + filter normalization (C3/C9), branch-not-found not auth (B12).
+
 ## 0.8.3 — 2026-07
 
 Release-process fix: unblock the PyPI publish workflow.

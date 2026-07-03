@@ -91,7 +91,9 @@ class BunProjectInstaller(BaseInstaller):
     def install_dependencies(self) -> bool:
         self.logger.header(f"bun {' '.join(self.install_args)}")
         bun = shutil.which("bun")
-        assert bun is not None
+        if bun is None:
+            self.logger.error("bun não encontrado no PATH")
+            return False
         try:
             subprocess.run(
                 [bun, *self.install_args],
@@ -111,7 +113,9 @@ class BunProjectInstaller(BaseInstaller):
     def build_project(self) -> bool:
         self.logger.header(f"bun run {self.build_command}")
         bun = shutil.which("bun")
-        assert bun is not None
+        if bun is None:
+            self.logger.error("bun não encontrado no PATH")
+            return False
         try:
             subprocess.run(
                 [bun, "run", self.build_command],
@@ -133,7 +137,9 @@ class BunProjectInstaller(BaseInstaller):
             self.logger.error(f"Script CLI em falta: {self.cli_script}")
             return False
         node = shutil.which("node")
-        assert node is not None
+        if node is None:
+            self.logger.error("node não encontrado no PATH")
+            return False
         script_abs = str(self.cli_script.resolve())
         command = f'"{node}" "{script_abs}"'
         write_cli_wrapper(
@@ -157,10 +163,15 @@ class BunProjectInstaller(BaseInstaller):
         )
         if not w.is_file():
             return False
+        # Em Windows, ``.cmd`` não é executável directamente por CreateProcess
+        # (WinError 193); invocamos via ``cmd /c``.
+        cmd = (
+            ["cmd", "/c", str(w), "--version"]
+            if self.is_windows
+            else [str(w), "--version"]
+        )
         try:
-            result = subprocess.run(
-                [str(w), "--version"], capture_output=True, text=True, timeout=15
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
             if result.returncode == 0:
                 self.logger.success(f"Versão: {(result.stdout or '').strip()}")
                 return True

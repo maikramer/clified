@@ -48,9 +48,11 @@ def test_search_subcommand() -> None:
             description="Image generation",
         )
     ]
-    with patch("clified.installer.catalog.list_known", return_value=specs):
-        with patch("clified.installer.receipts.load_all", return_value={}):
-            assert main(["search", "text"]) == 0
+    with (
+        patch("clified.installer.catalog.list_known", return_value=specs),
+        patch("clified.installer.receipts.load_all", return_value={}),
+    ):
+        assert main(["search", "text"]) == 0
 
 
 def test_unknown_tool_delegates_without_traceback(
@@ -66,3 +68,22 @@ def test_unknown_tool_delegates_without_traceback(
     captured = capsys.readouterr()
     assert "Traceback" not in captured.out
     assert "Traceback" not in captured.err
+
+
+def test_version_flag_prints_version(capsys) -> None:
+    """C1: ``clified --version`` imprime a versão e sai 0 (sem tracebacks)."""
+    from clified.paths import version
+
+    rc = main(["--version"])
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert version() in captured.out
+    assert "Traceback" not in captured.out
+
+
+def test_install_without_tool_or_all_errors() -> None:
+    """C12: ``clified install`` sem tool nem ``--all`` não instala tudo
+    silenciosamente — deve falhar com erro explícito."""
+    with patch("clified.installer.unified.load_registry", return_value=(None, {})):
+        rc = main(["install"])
+    assert rc == 1

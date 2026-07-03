@@ -6,10 +6,15 @@ import argparse
 import os
 import platform
 import sys
+from contextlib import suppress
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from clified.cli.output import OutputFormatter
 from clified.logging import Logger
+
+if TYPE_CHECKING:
+    from clified.installer.receipts import InstallReceipt
 
 SUBCOMMANDS = frozenset(
     {"install", "get", "list", "update", "uninstall", "search", "doctor", "catalog"}
@@ -45,7 +50,9 @@ def _build_subparsers() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(prog="clified")
     sub = root.add_subparsers(dest="command", required=True)
 
-    p_install = sub.add_parser("install", help="Instalar ferramenta do tools.yaml activo")
+    p_install = sub.add_parser(
+        "install", help="Instalar ferramenta do tools.yaml activo"
+    )
     p_install.add_argument("tool", nargs="?", default=None)
     p_install.add_argument("--all", action="store_true")
     _global_flags(p_install)
@@ -65,7 +72,9 @@ def _build_subparsers() -> argparse.ArgumentParser:
     p_update = sub.add_parser("update", help="Actualizar ferramentas instaladas")
     p_update.add_argument("tool", nargs="?", default=None)
     p_update.add_argument("--all", action="store_true")
-    p_update.add_argument("--ref", default=None, help="Nova ref git (branch/tag/commit)")
+    p_update.add_argument(
+        "--ref", default=None, help="Nova ref git (branch/tag/commit)"
+    )
     p_update.add_argument("--force", action="store_true")
     p_update.add_argument("--prefix", default=None)
     p_update.add_argument(
@@ -110,7 +119,12 @@ def _apply_pipe_defaults(args: argparse.Namespace) -> None:
         os.environ.setdefault("PIP_NO_INPUT", "1")
 
 
-def _restore_env_from_receipt(receipt) -> None:
+def _restore_env_from_receipt(receipt: InstallReceipt) -> None:
+    # Limpa primeiro para um receipt anterior não envenenar o env da ferramenta
+    # seguinte (ex.: em ``update --all`` um receipt ``source=local`` com
+    # ``tools_yaml`` vazio não deve herdar o ``CLIFIED_TOOLS`` do anterior).
+    os.environ.pop("CLIFIED_TOOLS", None)
+    os.environ.pop("CLIFIED_ROOT", None)
     if receipt.tools_yaml:
         os.environ["CLIFIED_TOOLS"] = receipt.tools_yaml
     if receipt.project_root:
@@ -214,12 +228,14 @@ def _cmd_catalog(args: argparse.Namespace) -> int:
 
 def _cmd_doctor(args: argparse.Namespace) -> int:
     from clified.installer.doctor import run_doctor_with_state
-    from clified.installer.registry import load_registry, list_available_tools, get_workspace
+    from clified.installer.registry import (
+        get_workspace,
+        list_available_tools,
+        load_registry,
+    )
 
-    try:
+    with suppress(FileNotFoundError):
         load_registry()
-    except FileNotFoundError:
-        pass
 
     output = OutputFormatter(json_mode=args.json, quiet=args.quiet)
     logger = Logger()
@@ -243,6 +259,7 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
         output=output,
         fix=args.fix,
         tool_filter=args.tool,
+        yes=args.yes,
     )
     return 0 if ok else 1
 
@@ -250,6 +267,11 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
 def _git_pull_changed(clone_path: Path) -> bool:
     from clified.installer import catalog
 
+    # Clones pinned por SHA ficam em detached HEAD — ``git pull --ff-only``
+    # aborta com "You are not currently on a branch". Não há branch para
+    # avançar (o SHA é fixo), por isso reportamos "sem alterações" sem erro.
+    if catalog.current_branch(clone_path) is None:
+        return False
     before = catalog.git_head_commit(clone_path)
     result = catalog.pull_ff_only(clone_path)
     if result.returncode != 0:
@@ -265,7 +287,6 @@ def _update_one(
     force: bool,
     prefix: Path | None,
     python_cmd: str,
-    output: OutputFormatter,
 ) -> tuple[bool, dict]:
     from clified.installer import catalog
     from clified.installer import registry as reg
@@ -274,7 +295,8 @@ def _update_one(
 
     receipt = get(name)
     if receipt is None:
-        raise KeyError(f"Não instalado: {name!r}")
+        msg = f"Não instalado: {name!r}"
+        raise KeyError(msg)
 
     _restore_env_from_receipt(receipt)
     reg.reset_registry()
@@ -373,7 +395,6 @@ def _cmd_update(args: argparse.Namespace) -> int:
                 force=args.force,
                 prefix=prefix,
                 python_cmd=args.python,
-                output=output,
             )
             results.append(payload)
             if payload.get("skipped"):
@@ -383,8 +404,8 @@ def _cmd_update(args: argparse.Namespace) -> int:
             else:
                 logger.error(f"{name}: falhou")
             all_ok = all_ok and ok
-        except (KeyError, RuntimeError) as exc:
-            logger.error(f"{name}: {exc}")
+        except (KeyError, RuntimeError) as exc:  # noqa: PERF203
+            logger.error(f"{name}: {exc}")  # noqa: TRY400
             results.append({"tool": name, "ok": False, "error": str(exc)})
             all_ok = False
 
@@ -404,15 +425,13 @@ def _cmd_uninstall(args: argparse.Namespace) -> int:
     name = args.tool.lower()
     receipt = get(name)
     if receipt is None:
-        logger.error(f"Não instalado: {name!r} (use clified list)")
+        output.error(f"Não instalado: {name!r} (use clified list)")
         return 1
 
     _restore_env_from_receipt(receipt)
     reg.reset_registry()
-    try:
+    with suppress(FileNotFoundError):
         load_registry()
-    except FileNotFoundError:
-        pass
 
     prefix = Path(args.prefix) if args.prefix else None
     ctx = ReceiptContext(receipt_key=name, source=receipt.source)
@@ -432,17 +451,34 @@ def _cmd_uninstall(args: argparse.Namespace) -> int:
         python_cmd=args.python,
         receipt_ctx=ctx,
     )
-    remove(name)
+    # ``install_tool`` já remove o receipt no sucesso (unified.py); remover
+    # incondicionalmente aqui orfaria artefactos quando a desinstalação falha.
+    if result.ok:
+        remove(name)
 
     if args.purge and receipt.repo_clone_path:
         clone = Path(receipt.repo_clone_path)
         if clone.is_dir():
-            catalog._rm_tree(clone)
-            logger.success(f"Clone removido: {clone}")
+            from clified.installer.receipts import load_all
+
+            clone_resolved = clone.resolve()
+            in_use = any(
+                k.lower() != name
+                and bool(r.repo_clone_path)
+                and Path(r.repo_clone_path).resolve() == clone_resolved
+                for k, r in load_all().items()
+            )
+            if in_use:
+                logger.warn(
+                    f"Clone {clone} partilhado por outra ferramenta — não removido."
+                )
+            else:
+                catalog.rm_tree(clone)
+                logger.success(f"Clone removido: {clone}")
         elif receipt.repo:
             fallback = catalog.sources_dir() / name
             if fallback.is_dir():
-                catalog._rm_tree(fallback)
+                catalog.rm_tree(fallback)
                 logger.success(f"Clone removido: {fallback}")
 
     if output.is_json:
@@ -454,44 +490,57 @@ def _cmd_install(args: argparse.Namespace) -> int:
     from clified.installer.unified import install_all, install_tool, load_registry
 
     os.environ.setdefault("UV_VENV_CLEAR", "1")
-    try:
-        load_registry()
-    except FileNotFoundError as e:
-        Logger().error(str(e))
-        return 1
-
     prefix = Path(args.prefix) if args.prefix else None
     output = OutputFormatter(json_mode=args.json, quiet=args.quiet)
+    try:
+        load_registry()
+    except (FileNotFoundError, ValueError) as e:
+        output.error(str(e))
+        return 1
+
     results = []
 
-    if args.all or args.tool is None:
-        ok, results = install_all(
-            install_prefix=prefix,
-            python_cmd=args.python,
-            use_venv=args.use_venv,
-            skip_deps=args.skip_deps,
-            skip_models=args.skip_models,
-            force=args.force,
-            retry_attempts=args.retry,
-        )
-    else:
-        result = install_tool(
-            args.tool,
-            action=args.action,
-            install_prefix=prefix,
-            python_cmd=args.python,
-            use_venv=args.use_venv,
-            skip_deps=args.skip_deps,
-            skip_models=args.skip_models,
-            force=args.force,
-            retry_attempts=args.retry,
-        )
-        ok = bool(result)
-        results = [result]
+    if args.tool is None and not args.all:
+        output.error("Indica uma ferramenta ou --all (ex.: clified install denv).")
+        return 1
+
+    try:
+        if args.all:
+            ok, results = install_all(
+                install_prefix=prefix,
+                python_cmd=args.python,
+                use_venv=args.use_venv,
+                skip_deps=args.skip_deps,
+                skip_models=args.skip_models,
+                force=args.force,
+                retry_attempts=args.retry,
+            )
+        else:
+            result = install_tool(
+                args.tool,
+                action=args.action,
+                install_prefix=prefix,
+                python_cmd=args.python,
+                use_venv=args.use_venv,
+                skip_deps=args.skip_deps,
+                skip_models=args.skip_models,
+                force=args.force,
+                retry_attempts=args.retry,
+            )
+            ok = bool(result)
+            results = [result]
+    except KeyError as e:
+        msg = str(e.args[0]) if e.args else str(e)
+        output.error(msg, details={"action": args.action, "tool": args.tool})
+        return 1
 
     if output.is_json:
         output.data(
-            {"ok": ok, "action": args.action, "results": [r.to_dict() for r in results]},
+            {
+                "ok": ok,
+                "action": args.action,
+                "results": [r.to_dict() for r in results],
+            },
             title="install",
         )
     return 0 if ok else 1
@@ -541,6 +590,11 @@ def _dispatch(command: str, args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     argv = list(argv) if argv is not None else sys.argv[1:]
+    if argv and argv[0] in ("--version", "-V"):
+        from clified.paths import version
+
+        print(version())  # noqa: T201
+        return 0
     if not argv or argv[0] not in SUBCOMMANDS:
         from clified.installer.unified import main as legacy_main
 
@@ -555,5 +609,11 @@ def main(argv: list[str] | None = None) -> int:
         os.environ.pop("CLIFIED_JSON", None)
     try:
         return _dispatch(args.command, args)
+    except ValueError as e:
+        # tools.yaml inválido (kind desconhecido, versão/ordem não numérica, …)
+        # chegaria como traceback cru; apresenta erro limpo (JSON em stdout).
+        msg = f"Configuração inválida: {e}"
+        OutputFormatter(json_mode=getattr(args, "json", False)).error(msg)
+        return 1
     finally:
         os.environ.pop("CLIFIED_JSON", None)

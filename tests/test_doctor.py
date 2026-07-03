@@ -155,3 +155,31 @@ class _NullLogger:
     def success(self, *_a: object, **_k: object) -> None: ...
     def warning(self, *_a: object, **_k: object) -> None: ...
     def info(self, *_a: object, **_k: object) -> None: ...
+
+
+def test_orphan_wrappers_ignores_non_clified_files(tmp_path: Path) -> None:
+    """C3: ``_orphan_wrappers`` só toca em wrappers gerados pelo clified."""
+    from clified.installer.doctor import _orphan_wrappers
+
+    # Script alheio que referencia um .venv inexistente — NÃO deve ser marcado.
+    alien = tmp_path / "alien"
+    alien.write_text('exec "/missing/.venv/bin/x" "$@"\n', encoding="utf-8")
+    # Wrapper clified cujo venv não existe — DEVE ser marcado.
+    clified_w = tmp_path / "mytool"
+    clified_w.write_text(
+        '# mytool — gerado por clified\nexec "/missing/.venv/bin/mytool" "$@"\n',
+        encoding="utf-8",
+    )
+    orphans = _orphan_wrappers(tmp_path)
+    assert str(clified_w) in orphans
+    assert str(alien) not in orphans
+
+
+def test_norm_tool_normalizes() -> None:
+    """C9: filtro de doctor normaliza maiúsculas e separadores ``-``/``_``."""
+    from clified.installer.doctor import _norm_tool
+
+    assert _norm_tool("DENV") == "denv"
+    assert _norm_tool("my-tool") == "mytool"
+    assert _norm_tool("my_tool") == "mytool"
+    assert _norm_tool("  Demo ") == "demo"

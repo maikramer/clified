@@ -121,3 +121,17 @@ def test_from_dict_missing_repo_clone_path_defaults_empty() -> None:
     receipt = InstallReceipt.from_dict(legacy)
     assert receipt.repo_clone_path == ""
     assert receipt.commit == "abc"
+
+
+def test_from_dict_artifacts_non_list_is_safe() -> None:
+    """B8: ``artifacts`` corrupto (string/int) não deve char-split nem crashar.
+
+    Antes do fix, ``list("some/path")`` gerava ``['s','o','m','e',...]``."""
+    r1 = InstallReceipt.from_dict(
+        {"kind": "python", "cli_name": "x", "source": "local", "artifacts": "some/path"}
+    )
+    assert r1.artifacts == []
+    r2 = InstallReceipt.from_dict(
+        {"kind": "python", "cli_name": "x", "source": "local", "artifacts": 5}
+    )
+    assert r2.artifacts == []

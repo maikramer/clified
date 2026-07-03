@@ -5,10 +5,13 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from clified.core.state_store import StateStore, get_state_store
+from clified.core.state_store import get_state_store, reset_singleton
 from clified.paths import clified_home, version
+
+if TYPE_CHECKING:
+    from clified.core.state_store import StateStore
 
 _NAMESPACE = "installed"
 
@@ -52,7 +55,11 @@ class InstallReceipt:
             catalog_name=str(data.get("catalog_name", "")),
             install_prefix=str(data.get("install_prefix", "")),
             repo_clone_path=str(data.get("repo_clone_path", "")),
-            artifacts=list(data.get("artifacts") or []),
+            artifacts=(
+                list(data.get("artifacts"))
+                if isinstance(data.get("artifacts"), list)
+                else []
+            ),
             installed_at=str(data.get("installed_at", "")),
             updated_at=str(data.get("updated_at", "")),
             clified_version=str(data.get("clified_version", "")),
@@ -94,14 +101,14 @@ def _store() -> StateStore:
 
 def reset_store() -> None:
     """Limpa singleton (tests)."""
-    import clified.core.state_store as mod
-
-    mod._store = None
+    reset_singleton()
 
 
 def load_all() -> dict[str, InstallReceipt]:
     raw = _store().get_namespace(_NAMESPACE)
-    return {k: InstallReceipt.from_dict(v) for k, v in raw.items() if isinstance(v, dict)}
+    return {
+        k: InstallReceipt.from_dict(v) for k, v in raw.items() if isinstance(v, dict)
+    }
 
 
 def get(name: str) -> InstallReceipt | None:

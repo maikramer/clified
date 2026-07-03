@@ -34,7 +34,15 @@ class RetryPolicy:
         ),
     )
     non_retryable_exceptions: tuple[type[Exception], ...] = field(
-        default_factory=lambda: (KeyboardInterrupt, SystemExit, ValueError),
+        default_factory=lambda: (
+            KeyboardInterrupt,
+            SystemExit,
+            ValueError,
+            # OSError inclui estes; são falhas permanentes (não transientes) —
+            # não faz sentido retentar ficheiro inexistente ou permission denied.
+            FileNotFoundError,
+            PermissionError,
+        ),
     )
 
     def with_attempts(self, max_attempts: int) -> RetryPolicy:
@@ -94,11 +102,10 @@ class RetryEngine:
 
     def calculate_delay(self, attempt: int) -> float:
         delay = self.policy.base_delay * (self.policy.exponential_base ** (attempt - 1))
-        delay = min(delay, self.policy.max_delay)
         if self.policy.jitter:
             jitter_range = delay * self.policy.jitter_factor
             delay = max(0.1, delay + random.uniform(-jitter_range, jitter_range))
-        return delay
+        return min(delay, self.policy.max_delay)
 
     def should_retry(self, exception: Exception, attempt: int) -> bool:
         if attempt >= self.policy.max_attempts:
