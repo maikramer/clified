@@ -110,6 +110,8 @@ When `tools.yaml` lives in a subfolder (e.g. `cli/tools.yaml`), set `workspace.r
 
 ## Next steps
 
+- [Concepts](concepts.md) — motor, registry, catalog, state
 - [Architecture](architecture.md) — engine vs registry
+- [Install pipeline](install-pipeline.md) — what happens during install
 - [`tools.yaml` reference](tools-yaml.md) — register your tool
 - [Migrating a project](migrating-a-project.md) — adopt Clified in an existing repo

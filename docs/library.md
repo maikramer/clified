@@ -96,7 +96,7 @@ store.set("my_namespace", "last_deploy", {"env": "prod"})
 
 JSON persistence at `~/.config/clified/state.json` (via `CLIFIED_HOME`).
 Installed tools are tracked under the `installed` namespace by the installer
-(see `clified list`).
+— see [Package manager](package-manager.md) and `clified list`.
 
 ## Error diagnosis (patterns)
 

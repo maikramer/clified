@@ -179,3 +179,5 @@ clified-install all --force
 ```
 
 Useful flags: `--prefix`, `--python`, `--skip-deps`, `--force`, `--json`, `--quiet`.
+
+See also: [Install pipeline](install-pipeline.md) · [Package manager](package-manager.md)

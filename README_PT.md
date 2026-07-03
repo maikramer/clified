@@ -89,12 +89,17 @@ meu-cli --help
 
 ## Documentação
 
-A documentação completa está em **inglês** em [`docs/`](docs/):
+Índice completo: **[docs/README.md](docs/README.md)** (inglês)
 
 | Guia | Conteúdo |
 |------|----------|
 | [Getting started](docs/getting-started.md) | Instalação, fluxo numa máquina virgem, `install.sh` |
-| [Architecture](docs/architecture.md) | Motor, YAML, venvs e wrappers |
+| [Concepts](docs/concepts.md) | **Motor, registo, catálogo, state** — como encaixa tudo |
+| [Architecture](docs/architecture.md) | Diagrama, resolução de paths, tipos de installer |
+| [Install pipeline](docs/install-pipeline.md) | CLI → installer → wrappers → receipt (detalhe) |
+| [Remote catalog](docs/catalog.md) | `registry.yaml`, cache, `--get`, pinning de versão |
+| [Package manager](docs/package-manager.md) | `state.json`, receipts, list/update/uninstall |
+| [Doctor](docs/doctor.md) | Diagnósticos, `--fix`, wrappers órfãos |
 | [Referência `tools.yaml`](docs/tools-yaml.md) | Campos, tipos Python/Rust/Bun, exemplos |
 | [Hooks](docs/hooks.md) | `post_install`, hooks built-in, hooks locais |
 | [Migrating a project](docs/migrating-a-project.md) | denv / pc / GameDev / ai2print |

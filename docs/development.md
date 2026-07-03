@@ -24,6 +24,9 @@ CI (GitHub Actions) runs on Python 3.10, 3.12, and 3.13.
 
 ## Code layout
 
+See also [Concepts](concepts.md) and [Install pipeline](install-pipeline.md) for
+how these modules interact at runtime.
+
 ```
 src/clified/
 ├── __init__.py          # __version__

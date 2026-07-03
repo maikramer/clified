@@ -90,10 +90,17 @@ my-cli --help
 
 ## Documentation
 
+Full index: **[docs/README.md](docs/README.md)**
+
 | Guide | Contents |
 |-------|----------|
 | [Getting started](docs/getting-started.md) | Installation, clean-machine flow, `install.sh` |
-| [Architecture](docs/architecture.md) | Engine, YAML, venvs, and wrappers |
+| [Concepts](docs/concepts.md) | **Motor, registry, catalog, state** — how it fits together |
+| [Architecture](docs/architecture.md) | High-level diagram, path resolution, installer types |
+| [Install pipeline](docs/install-pipeline.md) | CLI → installer → wrappers → receipt (deep dive) |
+| [Remote catalog](docs/catalog.md) | `registry.yaml`, cache, `--get`, version pinning |
+| [Package manager](docs/package-manager.md) | `state.json`, receipts, list/update/uninstall |
+| [Doctor](docs/doctor.md) | Diagnostics, `--fix`, orphan wrappers |
 | [`tools.yaml` reference](docs/tools-yaml.md) | Fields, Python/Rust/Bun types, examples |
 | [Hooks](docs/hooks.md) | `post_install`, built-in hooks, local hooks |
 | [Migrating a project](docs/migrating-a-project.md) | denv / pc / GameDev / ai2print walkthrough |

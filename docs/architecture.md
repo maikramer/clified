@@ -1,5 +1,9 @@
 # Architecture
 
+> **Deep dives:** [Concepts](concepts.md) · [Install pipeline](install-pipeline.md) ·
+> [Remote catalog](catalog.md) · [Package manager](package-manager.md) ·
+> [Doctor](doctor.md) · [Full doc index](README.md)
+
 ## Overview
 
 ```
@@ -28,6 +32,7 @@
 │  RESULT ON THE USER MACHINE                                     │
 │  ~/.local/bin/my-cli     ← wrapper or binary                    │
 │  ~/project/.venv/        ← isolated Python deps (kind: python)  │
+│  ~/.config/clified/state.json  ← install receipts (0.8+)        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -110,3 +115,12 @@ Local dev: `CLIFIED_ROOT` points at a checkout; paths resolved by `clified.paths
 | Generic MCP, skills, PyTorch extras | `clified.hooks` |
 | Project-specific post-install | Repo `clified_install.py` |
 | venv / wrapper / build engine | Clified (PyPI) |
+| Installed-tool metadata (0.8+) | `~/.config/clified/state.json` |
+
+## Package manager layer (0.8+)
+
+Catalog installs (`--get`) write an **InstallReceipt** per tool. The `clified`
+entry point exposes `list`, `update`, `uninstall`, `search`, and `doctor` on
+top of this state — see [Package manager](package-manager.md).
+
+Legacy `clified-install` and positional `clified <tool>` remain supported.
