@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.9.0 — 2026-07
+
+Breaking alignment with the **AiGameKit** monorepo rename (was GameDev).
+
+- **Catalog keys**: `gamedev` → `aigamekit`, `gamedevlab` → `aigamekitlab`.
+  Use `clified get aigamekit` (install-all) instead of `clified get gamedev`.
+- **repos**: all public catalog entries now clone
+  `https://github.com/maikramer/AiGameKit.git`.
+- **Examples / docs**: `tools.aigamekit.yaml.example`,
+  `aigamekit-constraints.txt.example`, and hooks docs reference
+  `aigamekit_shared` / `aigamekit-lab` / `aigamekit-install`.
+
 ## 0.8.4 — 2026-07
 
 Code-review sweep + lint-debt cleanup. All ~65 pre-existing Ruff findings fixed,
