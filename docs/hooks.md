@@ -25,7 +25,7 @@ Reference directly in YAML:
 | `clified.hooks:register_mcp` | Register MCP server in Cursor |
 | `clified.hooks:register_mcp_serve` | MCP with `mcp serve` args (denv pattern) |
 | `clified.hooks:register_cursor_skill` | Copy skill to `.cursor/skills/` |
-| `clified.hooks.pytorch:install_nvdiffrast` | PyTorch nvdiffrast extra (GameDev) |
+| `clified.hooks.pytorch:install_nvdiffrast` | PyTorch nvdiffrast extra (AiGameKit) |
 
 ### MCP in Cursor
 
@@ -83,7 +83,7 @@ Clified inserts `project_root` on `sys.path` before import — so root-level `cl
 | **denv** | `clified_install:post_install` | `pip install mcp` + register `denv mcp serve` |
 | **pc** | `custom_install` + `post_install` | Requirements, local `.pth`, `pc-cli` skill |
 | **ai2print** | `clified_install:post_install` | Python venv + wrapper with `STL_REPAIR_ROOT` |
-| **GameDev** | `gamedev_shared.installer.clified_hooks:*` | PyTorch, nvdiffrast, text3d, etc. |
+| **AiGameKit** | `aigamekit_shared.installer.clified_hooks:*` | PyTorch, nvdiffrast, text3d, etc. |
 
 ## `custom_install` (Python)
 

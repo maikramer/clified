@@ -89,8 +89,8 @@ The `install.sh`:
 | `PYTHON_CMD` | auto-detected | Force interpreter (e.g. `/usr/bin/python3.12`) |
 | `CLIFIED_MIN_VERSION` | `0.4.1` | Minimum version for bootstrap |
 | `INSTALL_PREFIX` | `~/.local` | Where wrappers are installed |
-| `UV_VENV_CLEAR` | — | GameDev: recreate venv |
-| `UV_LINK_MODE` | — | GameDev: `copy` vs hardlink |
+| `UV_VENV_CLEAR` | — | AiGameKit: recreate venv |
+| `UV_LINK_MODE` | — | AiGameKit: `copy` vs hardlink |
 
 ## Windows
 

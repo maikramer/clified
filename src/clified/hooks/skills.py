@@ -1,4 +1,4 @@
-"""Instalação de Cursor skills (inspirado no GameDev skill_install)."""
+"""Instalação de Cursor skills (inspirado no AiGameKit skill_install)."""
 
 from __future__ import annotations
 

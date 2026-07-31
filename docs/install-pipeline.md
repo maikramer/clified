@@ -108,7 +108,7 @@ After `--get`, `CLIFIED_TOOLS` points at the cloned repo's YAML and
 Monorepos often declare:
 
 ```toml
-dependencies = ["gamedev-shared @ file:../Shared"]
+dependencies = ["aigamekit-shared @ file:../Shared"]
 ```
 
 Before `uv pip install`, Clified temporarily rewrites these to absolute

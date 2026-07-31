@@ -134,7 +134,7 @@ my-cli --help
 |---------|--------|------------|-------|
 | denv | python | MCP | `folder: .` |
 | pc | python | custom + skill | `folder: tools` |
-| GameDev | mixed | `gamedev_shared.installer.clified_hooks` | monorepo, `shared_python` |
+| AiGameKit | mixed | `aigamekit_shared.installer.clified_hooks` | monorepo, `shared_python` |
 | ai2print | rust | venv + env wrapper | GTK/Python hybrid |
 
 YAML examples live in Clified `bundled/examples/`.
@@ -162,10 +162,10 @@ Subproject scripts can delegate:
 subprocess.call([str(monorepo / "install.sh"), "materialize", "--action", action])
 ```
 
-## Programmatic bridge (GameDev)
+## Programmatic bridge (AiGameKit)
 
 ```python
-from gamedev_shared.installer.unified import install_tool, main
+from aigamekit_shared.installer.unified import install_tool, main
 install_tool("text2d", force=True)
 # or CLI: gamedev-install text2d
 ```

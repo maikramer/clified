@@ -19,7 +19,7 @@ class _BoomError(Exception):
 def test_rewrite_relative_file_dep(tmp_path: Path) -> None:
     (tmp_path / "Shared").mkdir()
     text = (
-        'dependencies = [\n  "gamedev-shared @ file:../Shared",\n  "trimesh>=4",\n]\n'
+        'dependencies = [\n  "aigamekit-shared @ file:../Shared",\n  "trimesh>=4",\n]\n'
     )
     out, changed = _rewrite_relative_file_deps(text, tmp_path / "Tool")
     assert changed
@@ -42,7 +42,7 @@ def test_patched_relative_deps_restores(tmp_path: Path) -> None:
     proj = tmp_path / "Tool"
     proj.mkdir()
     (tmp_path / "Shared").mkdir()
-    original = 'dependencies = ["gamedev-shared @ file:../Shared"]\n'
+    original = 'dependencies = ["aigamekit-shared @ file:../Shared"]\n'
     pyproject = proj / "pyproject.toml"
     pyproject.write_text(original, encoding="utf-8")
 
@@ -59,7 +59,7 @@ def test_patched_relative_deps_restores_on_error(tmp_path: Path) -> None:
     proj = tmp_path / "Tool"
     proj.mkdir()
     (tmp_path / "Shared").mkdir()
-    original = 'dependencies = ["gamedev-shared @ file:../Shared"]\n'
+    original = 'dependencies = ["aigamekit-shared @ file:../Shared"]\n'
     pyproject = proj / "pyproject.toml"
     pyproject.write_text(original, encoding="utf-8")
 

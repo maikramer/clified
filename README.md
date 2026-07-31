@@ -103,7 +103,7 @@ Full index: **[docs/README.md](docs/README.md)**
 | [Doctor](docs/doctor.md) | Diagnostics, `--fix`, orphan wrappers |
 | [`tools.yaml` reference](docs/tools-yaml.md) | Fields, Python/Rust/Bun types, examples |
 | [Hooks](docs/hooks.md) | `post_install`, built-in hooks, local hooks |
-| [Migrating a project](docs/migrating-a-project.md) | denv / pc / GameDev / ai2print walkthrough |
+| [Migrating a project](docs/migrating-a-project.md) | denv / pc / AiGameKit / ai2print walkthrough |
 | [CLI library](docs/library.md) | OutputFormatter, retry, patterns, Click |
 | [Troubleshooting](docs/troubleshooting.md) | PEP 668, wrong Python on PATH, MCP |
 | [Development](docs/development.md) | Tests, PyPI release, contributing |
@@ -163,7 +163,7 @@ than it supports — uv provisions the right version automatically.
 
 ### Monorepo `file:` dependencies
 
-A relative `file:` dependency (e.g. `gamedev-shared @ file:../Shared`) is
+A relative `file:` dependency (e.g. `aigamekit-shared @ file:../Shared`) is
 invalid PEP 508 and breaks uv's editable build. Clified absolutises such URLs
 for the duration of the build and restores `pyproject.toml` afterwards, so
 shared-package monorepos install cleanly without per-tool workarounds.
@@ -175,7 +175,7 @@ shared-package monorepos install cleanly without per-tool workarounds.
 | **denv** | LocatelliDockerManager | Python |
 | **cissapi** | LocatelliCissApi | Python |
 | **pc** | ProjetoCursor | Python |
-| **text2d**, **materialize**, … | GameDev | Python / Rust / Bun |
+| **text2d**, **materialize**, … | AiGameKit | Python / Rust / Bun |
 | **ai2print** | ai2print | Rust + Python (hook) |
 
 ## License

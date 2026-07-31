@@ -1,4 +1,4 @@
-"""Hooks PyTorch/CUDA reutilizáveis (inspirado no GameDev)."""
+"""Hooks PyTorch/CUDA reutilizáveis (inspirado no AiGameKit)."""
 
 from __future__ import annotations
 

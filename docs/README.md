@@ -29,7 +29,7 @@ a monorepo, or integrating Clified into your workflow.
 
 | Guide | Content |
 |-------|---------|
-| [Migrating a project](migrating-a-project.md) | denv, pc, GameDev, ai2print patterns |
+| [Migrating a project](migrating-a-project.md) | denv, pc, AiGameKit, ai2print patterns |
 | [Troubleshooting](troubleshooting.md) | PEP 668, PATH, MCP, common errors |
 
 ## For developers

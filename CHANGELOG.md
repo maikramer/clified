@@ -70,11 +70,11 @@ Release-process fix: unblock the PyPI publish workflow.
 ## 0.8.2 — 2026-07
 
 Bug fixes found by removing legacy installs and reinstalling all tools via the
-0.8 package manager (real catalog tools: GameDev + Locatelli).
+0.8 package manager (real catalog tools: AiGameKit + Locatelli).
 
 - **uv + relative `file:` deps**: `_rewrite_relative_file_deps` produced a
   malformed `file://C:\\...` URL (2 slashes + backslashes) that uv rejects —
-  blocking every GameDev Python tool that depends on `gamedev-shared @
+  blocking every AiGameKit Python tool that depends on `aigamekit-shared @
   file:../Shared`. Now emits a proper `file:///C:/.../Shared` (3 slashes,
   forward slashes); pip still tolerates it.
 - **`Logger.exception`**: missing method — `bun_installer`, `rust_installer`,
@@ -143,9 +143,9 @@ Package manager features: installed-tool state, subcommands, pinning.
 
 ## 0.7.4 — 2026-07
 
-Bundled catalog snapshot: GameDev monorepo tools.
+Bundled catalog snapshot: AiGameKit monorepo tools.
 
-- `bundled/registry.yaml`: add 16 public entries for `maikramer/GameDev`
+- `bundled/registry.yaml`: add 16 public entries for `maikramer/AiGameKit`
   (`text2d`, `text3d`, `materialize`, `vibegame`, meta `gamedev` → `all`, …).
 - Keeps offline `--catalog` / `--get` usable when the remote catalog is unreachable.
 

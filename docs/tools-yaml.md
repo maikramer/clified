@@ -31,10 +31,10 @@ tools:
 ```yaml
 workspace:
   root: .
-  name: "GameDev"
+  name: "AiGameKit"
   shared_python:
     path: Shared
-    import_name: gamedev_shared
+    import_name: aigamekit_shared
     src_subpath: src
 ```
 
@@ -102,7 +102,7 @@ tools:
     needs_pytorch: true
     install_before: [text2d]
     cross_deps: [text2d]
-    post_install: gamedev_shared.installer.clified_hooks:text3d_post_install
+    post_install: aigamekit_shared.installer.clified_hooks:text3d_post_install
 ```
 
 ## Rust (`kind: rust`)
@@ -166,7 +166,7 @@ See [Hooks](hooks.md).
 |------|--------|
 | `bundled/examples/tools.denv.yaml.example` | denv |
 | `bundled/examples/tools.pc.yaml.example` | pc |
-| `bundled/examples/tools.gamedev.yaml.example` | GameDev monorepo |
+| `bundled/examples/tools.aigamekit.yaml.example` | AiGameKit monorepo |
 
 ## CLI — using the registry
 

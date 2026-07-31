@@ -43,7 +43,7 @@ def test_search_subcommand() -> None:
     specs = [
         RepoSpec(
             name="text2d",
-            repo="https://github.com/x/GameDev.git",
+            repo="https://github.com/x/AiGameKit.git",
             tool="text2d",
             description="Image generation",
         )

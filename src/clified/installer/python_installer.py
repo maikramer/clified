@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 _PIP_BOOTSTRAP = ("pip", "setuptools>=68,<82", "wheel")
 
-# A relative ``file:`` dependency URL (e.g. ``gamedev-shared @ file:../Shared``)
+# A relative ``file:`` dependency URL (e.g. ``aigamekit-shared @ file:../Shared``)
 # is invalid PEP 508 — pip tolerates it but uv rejects it while building the
 # editable wheel. Match the relative path so it can be made absolute.
 _REL_FILE_DEP = re.compile(r"""(@\s*file:)(?!/)([^\s"',\]]+)""")

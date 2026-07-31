@@ -136,7 +136,7 @@ If the catalog entry has `tool: all`:
 
 ```yaml
   gamedev:
-    repo: https://github.com/maikramer/GameDev.git
+    repo: https://github.com/maikramer/AiGameKit.git
     tool: all
 ```
 

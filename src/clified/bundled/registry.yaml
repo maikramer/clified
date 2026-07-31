@@ -38,114 +38,114 @@ tools:
     description: "CLI do Projeto Cursor (Flutter + Supabase)"
     access: private
 
-  # --- GameDev (maikramer/GameDev — público) ---------------------------------
+  # --- AiGameKit (maikramer/AiGameKit — público) ---------------------------------
   gamedev:
-    repo: https://github.com/maikramer/GameDev.git
+    repo: https://github.com/maikramer/AiGameKit.git
     tool: all
     tools_yaml: tools.yaml
-    description: "GameDev monorepo — instalar todas as ferramentas presentes"
+    description: "AiGameKit monorepo — instalar todas as ferramentas presentes"
     access: public
 
   text2d:
-    repo: https://github.com/maikramer/GameDev.git
+    repo: https://github.com/maikramer/AiGameKit.git
     tool: text2d
     tools_yaml: tools.yaml
     description: "Text-to-image FLUX.2 Klein (SDNQ)"
     access: public
 
   text3d:
-    repo: https://github.com/maikramer/GameDev.git
+    repo: https://github.com/maikramer/AiGameKit.git
     tool: text3d
     tools_yaml: tools.yaml
     description: "Pipeline text-to-3D (Text2D + Hunyuan3D)"
     access: public
 
   texture2d:
-    repo: https://github.com/maikramer/GameDev.git
+    repo: https://github.com/maikramer/AiGameKit.git
     tool: texture2d
     tools_yaml: tools.yaml
     description: "Texturas 2D seamless (GPU local ou HF API)"
     access: public
 
   skymap2d:
-    repo: https://github.com/maikramer/GameDev.git
+    repo: https://github.com/maikramer/AiGameKit.git
     tool: skymap2d
     tools_yaml: tools.yaml
     description: "Skymaps equirectangular 360° (HF Inference API)"
     access: public
 
   text2sound:
-    repo: https://github.com/maikramer/GameDev.git
+    repo: https://github.com/maikramer/AiGameKit.git
     tool: text2sound
     tools_yaml: tools.yaml
     description: "Text-to-audio Stable Audio Open 1.0"
     access: public
 
   terrain3d:
-    repo: https://github.com/maikramer/GameDev.git
+    repo: https://github.com/maikramer/AiGameKit.git
     tool: terrain3d
     tools_yaml: tools.yaml
     description: "Geração de terreno IA (diffusion; CUDA)"
     access: public
 
   rocks3d:
-    repo: https://github.com/maikramer/GameDev.git
+    repo: https://github.com/maikramer/AiGameKit.git
     tool: rocks3d
     tools_yaml: tools.yaml
     description: "Rochas 3D procedurais para game dev"
     access: public
 
   gameassets:
-    repo: https://github.com/maikramer/GameDev.git
+    repo: https://github.com/maikramer/AiGameKit.git
     tool: gameassets
     tools_yaml: tools.yaml
     description: "Batch de assets + gameassets dream (idea-to-game)"
     access: public
 
   gamedevlab:
-    repo: https://github.com/maikramer/GameDev.git
+    repo: https://github.com/maikramer/AiGameKit.git
     tool: gamedevlab
     tools_yaml: tools.yaml
-    description: "GameDevLab — debug 3D, benches, profiling"
+    description: "AiGameKitLab — debug 3D, benches, profiling"
     access: public
 
   part3d:
-    repo: https://github.com/maikramer/GameDev.git
+    repo: https://github.com/maikramer/AiGameKit.git
     tool: part3d
     tools_yaml: tools.yaml
     description: "Decomposição semântica de meshes (Hunyuan3D-Part)"
     access: public
 
   paint3d:
-    repo: https://github.com/maikramer/GameDev.git
+    repo: https://github.com/maikramer/AiGameKit.git
     tool: paint3d
     tools_yaml: tools.yaml
     description: "Texturização 3D PBR (Hunyuan3D-Paint + upscale)"
     access: public
 
   rigging3d:
-    repo: https://github.com/maikramer/GameDev.git
+    repo: https://github.com/maikramer/AiGameKit.git
     tool: rigging3d
     tools_yaml: tools.yaml
     description: "Auto-rigging 3D UniRig (PyTorch/CUDA)"
     access: public
 
   animator3d:
-    repo: https://github.com/maikramer/GameDev.git
+    repo: https://github.com/maikramer/AiGameKit.git
     tool: animator3d
     tools_yaml: tools.yaml
     description: "Animação 3D com bpy (Blender Python)"
     access: public
 
   materialize:
-    repo: https://github.com/maikramer/GameDev.git
+    repo: https://github.com/maikramer/AiGameKit.git
     tool: materialize
     tools_yaml: tools.yaml
     description: "PBR maps CLI (Rust/wgpu) — normal, AO, metallic, smoothness"
     access: public
 
   vibegame:
-    repo: https://github.com/maikramer/GameDev.git
+    repo: https://github.com/maikramer/AiGameKit.git
     tool: vibegame
     tools_yaml: tools.yaml
     description: "Motor 3D browser (TypeScript/Bun + Vite)"

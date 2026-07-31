@@ -35,7 +35,7 @@ def test_record_and_load() -> None:
         kind="python",
         cli_name="text2d",
         source="catalog",
-        repo="https://github.com/x/GameDev.git",
+        repo="https://github.com/x/AiGameKit.git",
         commit="abc123def",
         artifacts=["/tmp/bin/text2d"],
     )

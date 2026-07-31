@@ -41,7 +41,7 @@
 | Question | Answer |
 |----------|--------|
 | Do I need to clone Clified? | **No** — it comes from PyPI |
-| What do I clone? | The **tool** repository (denv, pc, GameDev, ai2print) |
+| What do I clone? | The **tool** repository (denv, pc, AiGameKit, ai2print) |
 | What installs Clified? | `pip` (automatic in `install.sh`) |
 | What installs the tool? | `clified-install` reading the repo `tools.yaml` |
 
@@ -101,7 +101,7 @@ Python equivalent: `clified.installer.bootstrap` (selecção de Python + pip ins
 
 On PyPI installs, bundled resources live under `clified/bundled/`:
 
-- `examples/` — reference YAML (denv, pc, GameDev)
+- `examples/` — reference YAML (denv, pc, AiGameKit)
 - `config/` — constraints, config samples
 
 Local dev: `CLIFIED_ROOT` points at a checkout; paths resolved by `clified.paths`.

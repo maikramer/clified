@@ -102,7 +102,7 @@ meu-cli --help
 | [Doctor](docs/doctor.md) | Diagnósticos, `--fix`, wrappers órfãos |
 | [Referência `tools.yaml`](docs/tools-yaml.md) | Campos, tipos Python/Rust/Bun, exemplos |
 | [Hooks](docs/hooks.md) | `post_install`, hooks built-in, hooks locais |
-| [Migrating a project](docs/migrating-a-project.md) | denv / pc / GameDev / ai2print |
+| [Migrating a project](docs/migrating-a-project.md) | denv / pc / AiGameKit / ai2print |
 | [CLI library](docs/library.md) | OutputFormatter, retry, patterns, Click |
 | [Troubleshooting](docs/troubleshooting.md) | PEP 668, Python errado no PATH, MCP |
 | [Development](docs/development.md) | Testes, release PyPI, contribuir |
@@ -149,7 +149,7 @@ clified-install denv --retry 3      # retentar falhas transitórias até 3 tenta
 | **denv** | LocatelliDockerManager | Python |
 | **cissapi** | LocatelliCissApi | Python |
 | **pc** | ProjetoCursor | Python |
-| **text2d**, **materialize**, … | GameDev | Python / Rust / Bun |
+| **text2d**, **materialize**, … | AiGameKit | Python / Rust / Bun |
 | **ai2print** | ai2print | Rust + Python (hook) |
 
 ## Licença

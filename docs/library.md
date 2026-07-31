@@ -1,6 +1,6 @@
 # CLI library
 
-Beyond the installer, Clified exposes reusable modules — consolidated from **denv**, **pc**, and **GameDev**.
+Beyond the installer, Clified exposes reusable modules — consolidated from **denv**, **pc**, and **AiGameKit**.
 
 ## Installation
 
@@ -150,8 +150,8 @@ Usually invoked via `clified.hooks:register_mcp_serve`.
 | `cli/output.py`, `cli/decorators.py` | denv |
 | `cli/app.py`, `cli/progress.py` | denv + pc |
 | `core/paths.py` | pc |
-| `hooks/skills.py` | GameDev |
-| `hooks/mcp.py`, `hooks/pytorch.py` | denv + GameDev |
+| `hooks/skills.py` | AiGameKit |
+| `hooks/mcp.py`, `hooks/pytorch.py` | denv + AiGameKit |
 | `patterns/reporter.py` | denv |
 
 Domain logic (Docker, ML, Flutter) **stays in projects** — only CLI/install infrastructure lives in Clified.
