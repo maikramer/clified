@@ -146,7 +146,7 @@ Package manager features: installed-tool state, subcommands, pinning.
 Bundled catalog snapshot: AiGameKit monorepo tools.
 
 - `bundled/registry.yaml`: add 16 public entries for `maikramer/AiGameKit`
-  (`text2d`, `text3d`, `materialize`, `vibegame`, meta `gamedev` → `all`, …).
+  (`text2d`, `text3d`, `materialize`, `vibegame`, meta `aigamekit` → `all`, …).
 - Keeps offline `--catalog` / `--get` usable when the remote catalog is unreachable.
 
 ## 0.7.3 — 2026-07

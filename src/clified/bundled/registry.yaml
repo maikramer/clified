@@ -39,7 +39,7 @@ tools:
     access: private
 
   # --- AiGameKit (maikramer/AiGameKit — público) ---------------------------------
-  gamedev:
+  aigamekit:
     repo: https://github.com/maikramer/AiGameKit.git
     tool: all
     tools_yaml: tools.yaml
@@ -102,9 +102,9 @@ tools:
     description: "Batch de assets + gameassets dream (idea-to-game)"
     access: public
 
-  gamedevlab:
+  aigamekitlab:
     repo: https://github.com/maikramer/AiGameKit.git
-    tool: gamedevlab
+    tool: aigamekitlab
     tools_yaml: tools.yaml
     description: "AiGameKitLab — debug 3D, benches, profiling"
     access: public

@@ -167,7 +167,7 @@ subprocess.call([str(monorepo / "install.sh"), "materialize", "--action", action
 ```python
 from aigamekit_shared.installer.unified import install_tool, main
 install_tool("text2d", force=True)
-# or CLI: gamedev-install text2d
+# or CLI: aigamekit-install text2d
 ```
 
 Installs `clified` via pip automatically if import fails.

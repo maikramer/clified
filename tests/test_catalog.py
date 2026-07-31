@@ -117,13 +117,13 @@ def test_bundled_catalog_ships_locatelli_tools() -> None:
     assert "LocatelliDockerManager" in data["denv"].repo
 
 
-def test_bundled_catalog_ships_gamedev_tools() -> None:
+def test_bundled_catalog_ships_aigamekit_tools() -> None:
     """O bundled/registry.yaml inclui ferramentas públicas do AiGameKit (sem rede)."""
     data = catalog.load_catalog(catalog._bundled_catalog_path())
     assert "text2d" in data
-    assert "gamedev" in data
+    assert "aigamekit" in data
     assert "AiGameKit" in data["text2d"].repo
-    assert data["gamedev"].tool == "all"
+    assert data["aigamekit"].tool == "all"
 
 
 # --- fetch remoto / cache / fallback (hermético, mock _fetch_text) ---

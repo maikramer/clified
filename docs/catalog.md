@@ -135,12 +135,12 @@ SHA-pinned installs (detached HEAD), pull is skipped — use
 If the catalog entry has `tool: all`:
 
 ```yaml
-  gamedev:
+  aigamekit:
     repo: https://github.com/maikramer/AiGameKit.git
     tool: all
 ```
 
-`clified get gamedev` runs `install_all`, respecting `install_order` and
+`clified get aigamekit` runs `install_all`, respecting `install_order` and
 `install_before` in the repo's `tools.yaml`.
 
 ## Git error messages
